@@ -47,8 +47,8 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
-#include <Mswsock.h>
-#include <Windows.h>
+#include <mswsock.h>
+#include <windows.h>
 #include "user_environment.h"
 typedef CRITICAL_SECTION userland_mutex_t;
 #if WINVER < 0x0600
@@ -76,11 +76,12 @@ void WakeAllXPConditionVariable(userland_cond_t *);
 typedef CONDITION_VARIABLE userland_cond_t;
 #endif
 typedef HANDLE userland_thread_t;
+typedef DWORD userland_thread_id_t;
 #define ADDRESS_FAMILY	unsigned __int8
 #define IPVERSION  4
 #define MAXTTL     255
 /* VS2010 comes with stdint.h */
-#if _MSC_VER >= 1600
+#if !defined(_MSC_VER) || (_MSC_VER >= 1600)
 #include <stdint.h>
 #else
 #define uint64_t   unsigned __int64
@@ -105,8 +106,9 @@ typedef HANDLE userland_thread_t;
 #define n_time     unsigned __int32
 #define sa_family_t unsigned __int8
 #define ssize_t    __int64
+#if !defined(__MINGW32__)
 #define __func__	__FUNCTION__
-
+#endif
 #ifndef EWOULDBLOCK
 #define EWOULDBLOCK             WSAEWOULDBLOCK
 #endif
@@ -220,7 +222,7 @@ typedef char* caddr_t;
 
 #define bzero(buf, len) memset(buf, 0, len)
 #define bcopy(srcKey, dstKey, len) memcpy(dstKey, srcKey, len)
-#if _MSC_VER < 1900
+#if defined(_MSC_VER) && (_MSC_VER < 1900) && !defined(__MINGW32__)
 #define snprintf(data, size, format, ...) _snprintf_s(data, size, _TRUNCATE, format, __VA_ARGS__)
 #endif
 #define inline __inline
@@ -282,6 +284,7 @@ typedef char* caddr_t;
 typedef pthread_mutex_t userland_mutex_t;
 typedef pthread_cond_t userland_cond_t;
 typedef pthread_t userland_thread_t;
+typedef pthread_t userland_thread_id_t;
 #endif
 
 #if defined(__Userspace_os_Windows) || defined(__Userspace_os_NaCl)
@@ -562,11 +565,6 @@ struct sx {int dummy;};
 		SCTP_BASE_VAR(debug_printf)(__VA_ARGS__); \
 	}
 
-#if defined(__FreeBSD__)
-#ifndef in6pcb
-#define in6pcb		inpcb
-#endif
-#endif
 /* Declare all the malloc names for all the various mallocs */
 MALLOC_DECLARE(SCTP_M_MAP);
 MALLOC_DECLARE(SCTP_M_STRMI);
@@ -969,7 +967,7 @@ int sctp_userspace_get_mtu_from_ifn(uint32_t if_index, int af);
 #define IPv6_HOP_LIMIT 128
 
 /* is the endpoint v6only? */
-#define SCTP_IPV6_V6ONLY(inp)	(((struct inpcb *)inp)->inp_flags & IN6P_IPV6_V6ONLY)
+#define SCTP_IPV6_V6ONLY(sctp_inpcb)	((sctp_inpcb)->ip_inp.inp.inp_flags & IN6P_IPV6_V6ONLY)
 /* is the socket non-blocking? */
 #define SCTP_SO_IS_NBIO(so)	((so)->so_state & SS_NBIO)
 #define SCTP_SET_SO_NBIO(so)	((so)->so_state |= SS_NBIO)
@@ -1039,6 +1037,9 @@ sctp_userspace_thread_create(userland_thread_t *thread, start_routine_t start_ro
 void
 sctp_userspace_set_threadname(const char *name);
 
+int sctp_userspace_thread_id(userland_thread_id_t *thread);
+int sctp_userspace_thread_equal(userland_thread_id_t t1, userland_thread_id_t t2);
+
 /*
  * SCTP protocol specific mbuf flags.
  */
@@ -1077,7 +1078,7 @@ extern void sctp_userspace_ip6_output(int *result, struct mbuf *o_pak,
 { \
 	if (stcb && stcb->sctp_ep) \
 		result = ip6_output(o_pak, \
-				    ((struct in6pcb *)(stcb->sctp_ep))->in6p_outputopts, \
+				    ((struct inpcb *)(stcb->sctp_ep))->in6p_outputopts, \
 				    (ro), 0, 0, ifp, NULL); \
 	else \
 		result = ip6_output(o_pak, NULL, (ro), 0, 0, ifp, NULL); \
@@ -1158,5 +1159,10 @@ sctp_get_mbuf_for_msg(unsigned int space_needed, int want_header, int how, int a
 #endif
 
 #define SCTP_IS_LISTENING(inp) ((inp->sctp_flags & SCTP_PCB_FLAGS_ACCEPTING) != 0)
+
+#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_DragonFly) || defined(__Userspace_os_Linux) || defined(__Userspace_os_NaCl) || defined(__Userspace_os_NetBSD) || defined(__Userspace_os_Windows) || defined(__Userspace_os_Fuchsia)
+int
+timingsafe_bcmp(const void *, const void *, size_t);
+#endif
 
 #endif

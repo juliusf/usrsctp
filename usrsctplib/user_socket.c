@@ -39,6 +39,7 @@
 #include <netinet/sctp_sysctl.h>
 #include <netinet/sctp_input.h>
 #include <netinet/sctp_peeloff.h>
+#include <netinet/sctp_callout.h>
 #include <netinet/sctp_crc32.h>
 #ifdef INET6
 #include <netinet6/sctp6_var.h>
@@ -77,11 +78,7 @@ extern int sctp_sosend(struct socket *so, struct sockaddr *addr, struct uio *uio
 extern int sctp_attach(struct socket *so, int proto, uint32_t vrf_id);
 extern int sctpconn_attach(struct socket *so, int proto, uint32_t vrf_id);
 
-void
-usrsctp_init(uint16_t port,
-             int (*conn_output)(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df),
-             void (*debug_printf)(const char *format, ...))
-{
+static void init_sync(void) {
 #if defined(__Userspace_os_Windows)
 #if defined(INET) || defined(INET6)
 	WSADATA wsaData;
@@ -104,7 +101,25 @@ usrsctp_init(uint16_t port,
 	pthread_mutexattr_destroy(&mutex_attr);
 	pthread_cond_init(&accept_cond, NULL);
 #endif
-	sctp_init(port, conn_output, debug_printf);
+}
+
+void
+usrsctp_init(uint16_t port,
+             int (*conn_output)(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df),
+             void (*debug_printf)(const char *format, ...))
+{
+	init_sync();
+	sctp_init(port, conn_output, debug_printf, 1);
+}
+
+
+void
+usrsctp_init_nothreads(uint16_t port,
+		       int (*conn_output)(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df),
+		       void (*debug_printf)(const char *format, ...))
+{
+	init_sync();
+	sctp_init(port, conn_output, debug_printf, 0);
 }
 
 
@@ -1154,6 +1169,9 @@ usrsctp_recvv(struct socket *so,
 			errno = 0;
 		}
 	}
+	if (errno != 0) {
+		goto out;
+	}
 	if ((*msg_flags & MSG_NOTIFICATION) == 0) {
 		struct sctp_inpcb *inp;
 
@@ -1205,7 +1223,10 @@ usrsctp_recvv(struct socket *so,
 			*infolen = 0;
 		}
 	}
-	if ((fromlenp != NULL) && (fromlen > 0) && (from != NULL)) {
+	if ((fromlenp != NULL) &&
+	    (fromlen > 0) &&
+	    (from != NULL) &&
+	    (ulen > auio.uio_resid)) {
 		switch (from->sa_family) {
 #if defined(INET)
 		case AF_INET:
@@ -1228,6 +1249,7 @@ usrsctp_recvv(struct socket *so,
 			*fromlenp = fromlen;
 		}
 	}
+out:
 	if (errno == 0) {
 		/* ready return value */
 		return (ulen - auio.uio_resid);
@@ -1557,8 +1579,6 @@ sowakeup(struct socket *so, struct sockbuf *sb)
 #endif
 	}
 	SOCKBUF_UNLOCK(sb);
-	/*__Userspace__ what todo about so_upcall?*/
-
 }
 #else /* kernel version for reference */
 /*
@@ -2129,7 +2149,7 @@ done1:
 
 int usrsctp_connect(struct socket *so, struct sockaddr *name, int namelen)
 {
-	struct sockaddr *sa;
+	struct sockaddr *sa = NULL;
 
 	errno = getsockaddr(&sa, (caddr_t)name, namelen);
 	if (errno)
@@ -2399,6 +2419,20 @@ usrsctp_getsockopt(struct socket *so, int level, int option_name,
 				*option_len = (socklen_t)sizeof(struct linger);
 				return (0);
 			}
+			break;
+		case SO_ERROR:
+			if (*option_len < (socklen_t)sizeof(int)) {
+				errno = EINVAL;
+				return (-1);
+			} else {
+				int *intval;
+
+				intval = (int *)option_value;
+				*intval = so->so_error;
+				*option_len = (socklen_t)sizeof(int);
+				return (0);
+			}
+			break;
 		default:
 			errno = EINVAL;
 			return (-1);
@@ -3131,14 +3165,14 @@ sctp_userspace_ip_output(int *result, struct mbuf *o_pak,
 	if ((!use_udp_tunneling) && (SCTP_BASE_VAR(userspace_rawsctp) != -1)) {
 		if (WSASendTo(SCTP_BASE_VAR(userspace_rawsctp), (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags, win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0) {
 			*result = WSAGetLastError();
-		} else if (win_sent_len != send_len) {
+		} else if ((int)win_sent_len != send_len) {
 			*result = WSAGetLastError();
 		}
 	}
 	if ((use_udp_tunneling) && (SCTP_BASE_VAR(userspace_udpsctp) != -1)) {
 		if (WSASendTo(SCTP_BASE_VAR(userspace_udpsctp), (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags, win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0) {
 			*result = WSAGetLastError();
-		} else if (win_sent_len != send_len) {
+		} else if ((int)win_sent_len != send_len) {
 			*result = WSAGetLastError();
 		}
 	}
@@ -3213,10 +3247,6 @@ void sctp_userspace_ip6_output(int *result, struct mbuf *o_pak,
 			SCTP_PRINTF("Why did the SCTP implementation did not choose a source address?\n");
 		}
 		/* TODO need to worry about ro->ro_dst as in ip_output? */
-#if defined(__Userspace_os_Linux) || defined (__Userspace_os_Windows)
-		/* need to put certain fields into network order for Linux */
-		ip6->ip6_plen = htons(ip6->ip6_plen);
-#endif
 	}
 
 	memset((void *)&dst, 0, sizeof(struct sockaddr_in6));
@@ -3289,14 +3319,14 @@ void sctp_userspace_ip6_output(int *result, struct mbuf *o_pak,
 	if ((!use_udp_tunneling) && (SCTP_BASE_VAR(userspace_rawsctp6) != -1)) {
 		if (WSASendTo(SCTP_BASE_VAR(userspace_rawsctp6), (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags, win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0) {
 			*result = WSAGetLastError();
-		} else if (win_sent_len != send_len) {
+		} else if ((int)win_sent_len != send_len) {
 			*result = WSAGetLastError();
 		}
 	}
 	if ((use_udp_tunneling) && (SCTP_BASE_VAR(userspace_udpsctp6) != -1)) {
 		if (WSASendTo(SCTP_BASE_VAR(userspace_udpsctp6), (LPWSABUF) send_iovec, iovcnt, &win_sent_len, win_msg_hdr.dwFlags, win_msg_hdr.name, (int) win_msg_hdr.namelen, NULL, NULL) != 0) {
 			*result = WSAGetLastError();
-		} else if (win_sent_len != send_len) {
+		} else if ((int)win_sent_len != send_len) {
 			*result = WSAGetLastError();
 		}
 	}
@@ -3357,12 +3387,11 @@ usrsctp_dumppacket(const void *buf, size_t len, int outbound)
 {
 	size_t i, pos;
 	char *dump_buf, *packet;
+	struct tm t;
 #ifdef _WIN32
 	struct timeb tb;
-	struct tm t;
 #else
 	struct timeval tv;
-	struct tm *t;
 	time_t sec;
 #endif
 
@@ -3376,19 +3405,25 @@ usrsctp_dumppacket(const void *buf, size_t len, int outbound)
 #ifdef _WIN32
 	ftime(&tb);
 	localtime_s(&t, &tb.time);
-	_snprintf_s(dump_buf, PREAMBLE_LENGTH + 1, PREAMBLE_LENGTH, PREAMBLE_FORMAT,
+#if defined(__MINGW32__)
+	snprintf(dump_buf, PREAMBLE_LENGTH + 1, PREAMBLE_FORMAT,
 	            outbound ? 'O' : 'I',
 	            t.tm_hour, t.tm_min, t.tm_sec, (long)(1000 * tb.millitm));
 #else
+	_snprintf_s(dump_buf, PREAMBLE_LENGTH + 1, PREAMBLE_LENGTH, PREAMBLE_FORMAT,
+	            outbound ? 'O' : 'I',
+	            t.tm_hour, t.tm_min, t.tm_sec, (long)(1000 * tb.millitm));
+#endif
+#else
 	gettimeofday(&tv, NULL);
 	sec = (time_t)tv.tv_sec;
-	t = localtime((const time_t *)&sec);
+	localtime_r((const time_t *)&sec, &t);
 	snprintf(dump_buf, PREAMBLE_LENGTH + 1, PREAMBLE_FORMAT,
 	         outbound ? 'O' : 'I',
-	         t->tm_hour, t->tm_min, t->tm_sec, (long)tv.tv_usec);
+	         t.tm_hour, t.tm_min, t.tm_sec, (long)tv.tv_usec);
 #endif
 	pos += PREAMBLE_LENGTH;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
 	strncpy_s(dump_buf + pos, strlen(HEADER) + 1, HEADER, strlen(HEADER));
 #else
 	strcpy(dump_buf + pos, HEADER);
@@ -3405,7 +3440,7 @@ usrsctp_dumppacket(const void *buf, size_t len, int outbound)
 		dump_buf[pos++] = low < 10 ? '0' + low : 'a' + (low - 10);
 		dump_buf[pos++] = ' ';
 	}
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
 	strncpy_s(dump_buf + pos, strlen(TRAILER) + 1, TRAILER, strlen(TRAILER));
 #else
 	strcpy(dump_buf + pos, TRAILER);
@@ -3493,6 +3528,54 @@ usrsctp_conninput(void *addr, const void *buffer, size_t length, uint8_t ecn_bit
 	return;
 }
 
+void usrsctp_handle_timers(int delta)
+{
+	sctp_handle_tick(delta);
+}
+
+int
+usrsctp_get_events(struct socket *so)
+{
+	int events = 0;
+
+	if (so == NULL) {
+		errno = EBADF;
+		return -1;
+	}
+
+	SOCK_LOCK(so);
+	if (soreadable(so)) {
+		events |= SCTP_EVENT_READ;
+	}
+	if (sowriteable(so)) {
+		events |= SCTP_EVENT_WRITE;
+	}
+	if (so->so_error) {
+		events |= SCTP_EVENT_ERROR;
+	}
+	SOCK_UNLOCK(so);
+
+	return events;
+}
+
+int
+usrsctp_set_upcall(struct socket *so, void (*upcall)(struct socket *, void *, int), void *arg)
+{
+	if (so == NULL) {
+		errno = EBADF;
+		return (-1);
+	}
+
+	SOCK_LOCK(so);
+	so->so_upcall = upcall;
+	so->so_upcallarg = arg;
+	so->so_snd.sb_flags |= SB_UPCALL;
+	so->so_rcv.sb_flags |= SB_UPCALL;
+	SOCK_UNLOCK(so);
+
+	return (0);
+}
+
 #define USRSCTP_TUNABLE_SET_DEF(__field, __prefix)   \
 int usrsctp_tunable_set_ ## __field(uint32_t value)  \
 {                                                    \
@@ -3523,7 +3606,7 @@ int usrsctp_sysctl_set_ ## __field(uint32_t value)   \
 	}                                            \
 }
 
-#if !defined(__Userspace_os_Windows)
+#if __GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtype-limits"
 #endif
@@ -3597,8 +3680,8 @@ USRSCTP_SYSCTL_SET_DEF(sctp_initial_cwnd, SCTPCTL_INITIAL_CWND)
 #ifdef SCTP_DEBUG
 USRSCTP_SYSCTL_SET_DEF(sctp_debug_on, SCTPCTL_DEBUG)
 #endif
-#if !defined(__Userspace_os_Windows)
-#pragma GCC diagnostic push
+#if __GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || defined(__clang__)
+#pragma GCC diagnostic pop
 #endif
 
 #define USRSCTP_SYSCTL_GET_DEF(__field) \

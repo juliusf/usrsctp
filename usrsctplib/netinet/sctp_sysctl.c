@@ -34,7 +34,7 @@
 
 #ifdef __FreeBSD__
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: head/sys/netinet/sctp_sysctl.c 326672 2017-12-07 22:19:08Z tuexen $");
+__FBSDID("$FreeBSD: head/sys/netinet/sctp_sysctl.c 340783 2018-11-22 20:49:41Z markj $");
 #endif
 
 #include <netinet/sctp_os.h>
@@ -499,6 +499,9 @@ sctp_sysctl_handle_assoclist(SYSCTL_HANDLER_ARGS)
 		SCTP_LTRACE_ERR_RET(NULL, NULL, NULL, SCTP_FROM_SCTP_SYSCTL, EPERM);
 		return (EPERM);
 	}
+	memset(&xinpcb, 0, sizeof(xinpcb));
+	memset(&xstcb, 0, sizeof(xstcb));
+	memset(&xraddr, 0, sizeof(xraddr));
 	LIST_FOREACH(inp, &SCTP_BASE_INFO(listhead), sctp_list) {
 		SCTP_INP_RLOCK(inp);
 		if (inp->sctp_flags & SCTP_PCB_FLAGS_SOCKET_ALLGONE) {
@@ -517,7 +520,9 @@ sctp_sysctl_handle_assoclist(SYSCTL_HANDLER_ARGS)
 		xinpcb.total_recvs = inp->total_recvs;
 		xinpcb.total_nospaces = inp->total_nospaces;
 		xinpcb.fragmentation_point = inp->sctp_frag_point;
-#if !(defined(__FreeBSD__) && (__FreeBSD_version < 1001517))
+#if defined(__FreeBSD__)
+		xinpcb.socket = (uintptr_t)inp->sctp_socket;
+#else
 		xinpcb.socket = inp->sctp_socket;
 #endif
 		so = inp->sctp_socket;

@@ -176,7 +176,7 @@ recv_function_route(void *arg)
 			}
 		}
 		if (ret < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EINTR) {
 				continue;
 			} else {
 				break;
@@ -223,7 +223,7 @@ recv_function_route(void *arg)
 		len = recvmsg(SCTP_BASE_VAR(userspace_route), &msg, 0);
 
 		if (len < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EINTR) {
 				continue;
 			} else {
 				break;
@@ -692,12 +692,10 @@ recv_function_raw(void *arg)
 		nResult = WSARecvFrom(SCTP_BASE_VAR(userspace_rawsctp), recv_iovec, MAXLEN_MBUF_CHAIN, &ncounter, &flags, (struct sockaddr *)&from, &fromlen, NULL, NULL);
 		if (nResult != 0) {
 			m_ErrorCode = WSAGetLastError();
-			if (m_ErrorCode == WSAETIMEDOUT) {
-				continue;
-			}
 			if ((m_ErrorCode == WSAENOTSOCK) || (m_ErrorCode == WSAEINTR)) {
 				break;
 			}
+			continue;
 		}
 		n = ncounter;
 #else
@@ -710,7 +708,7 @@ recv_function_raw(void *arg)
 		msg.msg_controllen = 0;
 		ncounter = n = recvmsg(SCTP_BASE_VAR(userspace_rawsctp), &msg, 0);
 		if (n < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EINTR) {
 				continue;
 			} else {
 				break;
@@ -801,6 +799,7 @@ recv_function_raw(void *arg)
 	}
 	/* free the array itself */
 	free(recvmbuf);
+	SCTPDBG(SCTP_DEBUG_USR, "%s: Exiting SCTP/IP4 rcv", __func__);
 	return (NULL);
 }
 #endif
@@ -819,10 +818,8 @@ recv_function_raw6(void *arg)
 #else
 	WSABUF recv_iovec[MAXLEN_MBUF_CHAIN];
 	int nResult, m_ErrorCode;
-	DWORD flags;
 	DWORD ncounter = 0;
 	struct sockaddr_in6 from;
-	int fromlen;
 	GUID WSARecvMsg_GUID = WSAID_WSARECVMSG;
 	LPFN_WSARECVMSG WSARecvMsg;
 	WSACMSGHDR *cmsgptr;
@@ -864,9 +861,7 @@ recv_function_raw6(void *arg)
 		}
 		to_fill = 0;
 #if defined(__Userspace_os_Windows)
-		flags = 0;
 		ncounter = 0;
-		fromlen = sizeof(struct sockaddr_in6);
 		memset(&from, 0, sizeof(struct sockaddr_in6));
 		nResult = WSAIoctl(SCTP_BASE_VAR(userspace_rawsctp6), SIO_GET_EXTENSION_FUNCTION_POINTER,
 		                   &WSARecvMsg_GUID, sizeof WSARecvMsg_GUID,
@@ -884,10 +879,10 @@ recv_function_raw6(void *arg)
 		}
 		if (nResult != 0) {
 			m_ErrorCode = WSAGetLastError();
-			if (m_ErrorCode == WSAETIMEDOUT)
-				continue;
-			if (m_ErrorCode == WSAENOTSOCK || m_ErrorCode == WSAEINTR)
+			if ((m_ErrorCode == WSAENOTSOCK) || (m_ErrorCode == WSAEINTR)) {
 				break;
+			}
+			continue;
 		}
 		n = ncounter;
 #else
@@ -900,12 +895,12 @@ recv_function_raw6(void *arg)
 		msg.msg_iov = recv_iovec;
 		msg.msg_iovlen = MAXLEN_MBUF_CHAIN;
 		msg.msg_control = (void *)cmsgbuf;
-		msg.msg_controllen = (socklen_t)CMSG_LEN(sizeof (struct in6_pktinfo));
+		msg.msg_controllen = (socklen_t)CMSG_SPACE(sizeof (struct in6_pktinfo));
 		msg.msg_flags = 0;
 
 		ncounter = n = recvmsg(SCTP_BASE_VAR(userspace_rawsctp6), &msg, 0);
 		if (n < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EINTR) {
 				continue;
 			} else {
 				break;
@@ -989,6 +984,7 @@ recv_function_raw6(void *arg)
 	}
 	/* free the array itself */
 	free(recvmbuf6);
+	SCTPDBG(SCTP_DEBUG_USR, "%s: Exiting SCTP/IP6 rcv", __func__);
 	return (NULL);
 }
 #endif
@@ -1072,7 +1068,7 @@ recv_function_udp(void *arg)
 
 		ncounter = n = recvmsg(SCTP_BASE_VAR(userspace_udpsctp), &msg, 0);
 		if (n < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EINTR) {
 				continue;
 			} else {
 				break;
@@ -1095,12 +1091,10 @@ recv_function_udp(void *arg)
 		}
 		if (nResult != 0) {
 			m_ErrorCode = WSAGetLastError();
-			if (m_ErrorCode == WSAETIMEDOUT) {
-				continue;
-			}
 			if ((m_ErrorCode == WSAENOTSOCK) || (m_ErrorCode == WSAEINTR)) {
 				break;
 			}
+			continue;
 		}
 		n = ncounter;
 #endif
@@ -1195,6 +1189,7 @@ recv_function_udp(void *arg)
 	}
 	/* free the array itself */
 	free(udprecvmbuf);
+	SCTPDBG(SCTP_DEBUG_USR, "%s: Exiting SCTP/UDP/IP4 rcv", __func__);
 	return (NULL);
 }
 #endif
@@ -1219,10 +1214,10 @@ recv_function_udp6(void *arg)
 	char cmsgbuf[CMSG_SPACE(sizeof (struct in6_pktinfo))];
 	int compute_crc = 1;
 #if !defined(__Userspace_os_Windows)
-	unsigned int ncounter;
 	struct iovec iov[MAXLEN_MBUF_CHAIN];
 	struct msghdr msg;
 	struct cmsghdr *cmsgptr;
+	unsigned int ncounter;
 #else
 	GUID WSARecvMsg_GUID = WSAID_WSARECVMSG;
 	LPFN_WSARECVMSG WSARecvMsg;
@@ -1230,8 +1225,8 @@ recv_function_udp6(void *arg)
 	WSABUF iov[MAXLEN_MBUF_CHAIN];
 	WSAMSG msg;
 	int nResult, m_ErrorCode;
-	DWORD ncounter;
 	WSACMSGHDR *cmsgptr;
+	DWORD ncounter;
 #endif
 
 	sctp_userspace_set_threadname("SCTP/UDP/IP6 rcv");
@@ -1269,12 +1264,12 @@ recv_function_udp6(void *arg)
 		msg.msg_iov = iov;
 		msg.msg_iovlen = MAXLEN_MBUF_CHAIN;
 		msg.msg_control = (void *)cmsgbuf;
-		msg.msg_controllen = (socklen_t)CMSG_LEN(sizeof (struct in6_pktinfo));
+		msg.msg_controllen = (socklen_t)CMSG_SPACE(sizeof (struct in6_pktinfo));
 		msg.msg_flags = 0;
 
 		ncounter = n = recvmsg(SCTP_BASE_VAR(userspace_udpsctp6), &msg, 0);
 		if (n < 0) {
-			if (errno == EAGAIN) {
+			if (errno == EAGAIN || errno == EINTR) {
 				continue;
 			} else {
 				break;
@@ -1301,12 +1296,10 @@ recv_function_udp6(void *arg)
 		}
 		if (nResult != 0) {
 			m_ErrorCode = WSAGetLastError();
-			if (m_ErrorCode == WSAETIMEDOUT) {
-				continue;
-			}
 			if ((m_ErrorCode == WSAENOTSOCK) || (m_ErrorCode == WSAEINTR)) {
 				break;
 			}
+			continue;
 		}
 		n = ncounter;
 #endif
@@ -1383,6 +1376,7 @@ recv_function_udp6(void *arg)
 	}
 	/* free the array itself */
 	free(udprecvmbuf6);
+	SCTPDBG(SCTP_DEBUG_USR, "%s: Exiting SCTP/UDP/IP6 rcv", __func__);
 	return (NULL);
 }
 #endif

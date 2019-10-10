@@ -459,7 +459,7 @@ void sctp_drain(void);
 #if defined(__Userspace__)
 void sctp_init(uint16_t,
                int (*)(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df),
-               void (*)(const char *, ...));
+               void (*)(const char *, ...), int start_threads);
 void sctp_notify(struct sctp_inpcb *, struct sctp_tcb *, struct sctp_nets *,
     uint8_t, uint8_t, uint16_t, uint32_t);
 #elif defined(__FreeBSD__) && __FreeBSD_version < 902000
