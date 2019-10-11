@@ -258,7 +258,7 @@ sctp_finish(void)
 #endif
 
 void
-sctp_pathmtu_adjustment(struct sctp_tcb *stcb, uint16_t nxtsz, struct sctp_nets *net)
+sctp_pathmtu_adjustment(struct sctp_tcb *stcb, uint16_t nxtsz, struct sctp_nets * net)
 {
 	struct sctp_tmit_chunk *chk;
 	uint16_t overhead, allow = 0;
