@@ -34,7 +34,7 @@
 
 #ifdef __FreeBSD__
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: head/sys/netinet/sctp_pcb.c 349998 2019-07-15 14:52:52Z tuexen $");
+__FBSDID("$FreeBSD: head/sys/netinet/sctp_pcb.c 351641 2019-08-31 13:13:40Z tuexen $");
 #endif
 
 #include <netinet/sctp_os.h>
@@ -73,6 +73,7 @@ __FBSDID("$FreeBSD: head/sys/netinet/sctp_pcb.c 349998 2019-07-15 14:52:52Z tuex
 #endif
 #if defined(__Userspace__)
 #include <user_socketvar.h>
+#include <user_atomic.h>
 #if !defined(__Userspace_os_Windows)
 #include <netdb.h>
 #endif
@@ -3268,7 +3269,7 @@ sctp_inpcb_bind(struct socket *so, struct sockaddr *addr,
 	/* bind a ep to a socket address */
 	struct sctppcbhead *head;
 	struct sctp_inpcb *inp, *inp_tmp;
-#if defined(INET) || (defined(INET6) && defined(__APPLE__)) || defined(__FreeBSD__) || defined(__APPLE__)
+#if defined(__FreeBSD__) || defined(__APPLE__)
 	struct inpcb *ip_inp;
 #endif
 	int port_reuse_active = 0;
@@ -3283,7 +3284,7 @@ sctp_inpcb_bind(struct socket *so, struct sockaddr *addr,
 	lport = 0;
 	bindall = 1;
 	inp = (struct sctp_inpcb *)so->so_pcb;
-#if defined(INET) || (defined(INET6) && defined(__APPLE__)) || defined(__FreeBSD__) || defined(__APPLE__)
+#if defined(__FreeBSD__) || defined(__APPLE__)
 	ip_inp = (struct inpcb *)so->so_pcb;
 #endif
 #ifdef SCTP_DEBUG
@@ -3313,7 +3314,7 @@ sctp_inpcb_bind(struct socket *so, struct sockaddr *addr,
 			struct sockaddr_in *sin;
 
 			/* IPV6_V6ONLY socket? */
-			if (SCTP_IPV6_V6ONLY(ip_inp)) {
+			if (SCTP_IPV6_V6ONLY(inp)) {
 				SCTP_LTRACE_ERR_RET(inp, NULL, NULL, SCTP_FROM_SCTP_PCB, EINVAL);
 				return (EINVAL);
 			}
@@ -4260,10 +4261,7 @@ sctp_inpcb_free(struct sctp_inpcb *inp, int immediate, int from)
 #else
 	if (inp->inp_vflag & INP_IPV6) {
 #endif
-		struct in6pcb *in6p;
-
-		in6p = (struct in6pcb *)inp;
-		ip6_freepcbopts(in6p->in6p_outputopts);
+		ip6_freepcbopts(ip_pcb->in6p_outputopts);
 	}
 #endif
 #endif				/* INET6 */
@@ -6637,7 +6635,11 @@ sctp_netisr_hdlr(struct mbuf *m, uintptr_t source)
 #endif
 
 void
-sctp_pcb_init()
+#if defined(__Userspace__)
+sctp_pcb_init(int start_threads)
+#else
+sctp_pcb_init(void)
+#endif
 {
 	/*
 	 * SCTP initialization for the PCB structures should be called by
@@ -6853,7 +6855,8 @@ sctp_pcb_init()
 	mbuf_initialize(NULL);
 	atomic_init();
 #if defined(INET) || defined(INET6)
-	recv_thread_init();
+	if (start_threads)
+		recv_thread_init();
 #endif
 #endif
 }
