@@ -59,6 +59,7 @@ __FBSDID("$FreeBSD: head/sys/netinet/sctputil.c 352592 2019-09-22 10:40:15Z tuex
 #include <netinet/sctp_constants.h>
 #if !defined(__Userspace_os_Windows)
 #include <netinet/udp.h>
+#include <netinet/icmp6.h>
 #endif
 #endif
 #if defined(__FreeBSD__)
@@ -7956,9 +7957,9 @@ sctp_recv_icmp_tunneled_packet(int cmd, struct sockaddr *sa, void *vip, void *ct
 #endif
 #endif
 
-#if defined(__FreeBSD__) && __FreeBSD_version >= 1100000
+#if defined(__Userspace__) || (defined(__FreeBSD__) && __FreeBSD_version >= 1100000)
 #ifdef INET6
-static void
+void
 sctp_recv_icmp6_tunneled_packet(int cmd, struct sockaddr *sa, void *d, void *ctx SCTP_UNUSED)
 {
 	struct ip6ctlparam *ip6cp;
@@ -8107,7 +8108,7 @@ sctp_recv_icmp6_tunneled_packet(int cmd, struct sockaddr *sa, void *d, void *ctx
 			soref(upcall_socket);
 			SOCK_UNLOCK(upcall_socket);
 			if ((upcall_socket->so_upcall != NULL) &&
-			    (upcall_socket->so_error) {
+			    (upcall_socket->so_error)) {
 				(*upcall_socket->so_upcall)(upcall_socket, upcall_socket->so_upcallarg, M_NOWAIT);
 			}
 			ACCEPT_LOCK();
