@@ -58,7 +58,8 @@ __FBSDID("$FreeBSD: head/sys/netinet/sctp_usrreq.c 350626 2019-08-06 10:29:19Z t
 #include <netinet/sctp_bsd_addr.h>
 #if defined(__Userspace__)
 #include <netinet/sctp_callout.h>
-#else
+#endif
+#if !defined(__Userspace_os_Windows)
 #include <netinet/udp.h>
 #endif
 
@@ -149,6 +150,7 @@ sctp_init(void)
 #ifdef INET
 	SCTP_BASE_VAR(userspace_rawsctp) = -1;
 	SCTP_BASE_VAR(userspace_udpsctp) = -1;
+	SCTP_BASE_VAR(userspace_icmp) = -1;
 #endif
 #ifdef INET6
 	SCTP_BASE_VAR(userspace_rawsctp6) = -1;
@@ -207,6 +209,16 @@ sctp_finish(void)
 #endif
 #endif
 #ifdef INET
+	if (SCTP_BASE_VAR(userspace_icmp) != -1) {
+#if defined(__Userspace_os_Windows)
+		WaitForSingleObject(SCTP_BASE_VAR(recvthreadicmp), INFINITE);
+		CloseHandle(SCTP_BASE_VAR(recvthreadicmp));
+#else
+		pthread_join(SCTP_BASE_VAR(recvthreadicmp), NULL);
+#endif
+	}
+#endif
+#ifdef INET
 	if (SCTP_BASE_VAR(userspace_rawsctp) != -1) {
 #if defined(__Userspace_os_Windows)
 		WaitForSingleObject(SCTP_BASE_VAR(recvthreadraw), INFINITE);
@@ -258,7 +270,7 @@ sctp_finish(void)
 #endif
 
 void
-sctp_pathmtu_adjustment(struct sctp_tcb *stcb, uint16_t nxtsz, struct sctp_nets *net)
+sctp_pathmtu_adjustment(struct sctp_tcb *stcb, uint16_t nxtsz, struct sctp_nets * net)
 {
 	struct sctp_tmit_chunk *chk;
 	uint16_t overhead, allow = 0;
