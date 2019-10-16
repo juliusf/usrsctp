@@ -337,6 +337,7 @@ sctp6_input(struct mbuf **i_pak, int *offp, int proto SCTP_UNUSED)
 	return (sctp6_input_with_port(i_pak, offp, 0));
 }
 #endif
+#endif
 
 void
 sctp6_notify(struct sctp_inpcb *inp,
@@ -350,7 +351,7 @@ sctp6_notify(struct sctp_inpcb *inp,
 	struct socket *so;
 #endif
 	int timer_stopped;
-
+printf("sctp6_notify\n");
 	switch (icmp6_type) {
 	case ICMP6_DST_UNREACH:
 		if ((icmp6_code == ICMP6_DST_UNREACH_NOROUTE) ||
@@ -587,6 +588,7 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 		return;
 	}
 
+#if !defined(__Userspace__)
 	if ((unsigned)cmd >= PRC_NCMDS) {
 		return;
 	}
@@ -595,6 +597,7 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 	} else if (inet6ctlerrmap[cmd] == 0) {
 		return;
 	}
+#endif
 	/* If the parameter is from icmp6, decode it. */
 	if (d != NULL) {
 		ip6cp = (struct ip6ctlparam *)d;
@@ -669,11 +672,11 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 					return;
 				}
 			} else {
-#if defined(__FreeBSD__)
-				if (ip6cp->ip6c_m->m_pkthdr.len >=
-				    ip6cp->ip6c_off + sizeof(struct sctphdr) +
-				                      sizeof(struct sctp_chunkhdr) +
-				                      offsetof(struct sctp_init, a_rwnd)) {
+#if defined(__FreeBSD__) || defined(__Userspace__)
+				if (ip6cp->ip6c_m->m_pkthdr.len >= (uint16_t)
+				    (ip6cp->ip6c_off + sizeof(struct sctphdr) +
+				    sizeof(struct sctp_chunkhdr) +
+				    offsetof(struct sctp_init, a_rwnd))) {
 					/*
 					 * In this case we can check if we
 					 * got an INIT chunk and if the
@@ -710,30 +713,12 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 			sctp6_notify(inp, stcb, net,
 			             ip6cp->ip6c_icmp6->icmp6_type,
 			             ip6cp->ip6c_icmp6->icmp6_code,
-			             ntohl(ip6cp->ip6c_icmp6->icmp6_mtu));
-#if defined(__Userspace__)
-			upcall_socket = NULL
-			if (!(stcb->sctp_ep->sctp_flags & SCTP_PCB_FLAGS_SOCKET_GONE) &&
-			    (stcb->sctp_socket != NULL) {
-				struct socket *upcall_socket;
-
-				upcall_socket = stcb->sctp_socket;
-				SOCK_LOCK(upcall_socket);
-				soref(upcall_socket);
-				SOCK_UNLOCK(upcall_socket);
-				if ((upcall_socket->so_upcall != NULL) &&
-				    (upcall_socket->so_error != 0)) {
-					(*upcall_socket->so_upcall)(upcall_socket, upcall_socket->so_upcallarg, M_NOWAIT);
-				}
-				ACCEPT_LOCK();
-				SOCK_LOCK(upcall_socket);
-				sorele(upcall_socket);
-			}
-#endif
+			             (uint16_t)ntohl(ip6cp->ip6c_icmp6->icmp6_mtu));
 		} else {
 #if defined(__FreeBSD__) && __FreeBSD_version < 500000
 			if (PRC_IS_REDIRECT(cmd) && (inp != NULL)) {
-				in6_rtchange(inp, inet6ctlerrmap[cmd]);
+				in6_rtchange((struct in6pcb *)inp,
+				    inet6ctlerrmap[cmd]);
 			}
 #endif
 			if ((stcb == NULL) && (inp != NULL)) {
@@ -748,7 +733,6 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 		}
 	}
 }
-#endif
 
 /*
  * this routine can probably be collasped into the one in sctp_userreq.c
