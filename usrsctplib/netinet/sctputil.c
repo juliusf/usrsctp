@@ -7984,7 +7984,7 @@ sctp_recv_icmp6_tunneled_packet(int cmd, struct sockaddr *sa, void *d, void *ctx
 	/* Check if we can safely examine the ports and the
 	 * verification tag of the SCTP common header.
 	 */
-	if (ip6cp->ip6c_m->m_pkthdr.len <
+	if ((uint64_t) ip6cp->ip6c_m->m_pkthdr.len <
 	    ip6cp->ip6c_off + sizeof(struct udphdr)+ offsetof(struct sctphdr, checksum)) {
 		return;
 	}
