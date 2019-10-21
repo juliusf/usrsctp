@@ -447,7 +447,7 @@ struct sctp_nets {
 	uint32_t flowid;
 	uint8_t flowtype;
 #endif
-#if defined(__Userspace__)
+#if defined(__Userspace__) || defined(__FreeBSD__)
 	uint8_t got_max;
 #endif
 	uint32_t probe_mtu; /* actual mtu probing size */

@@ -116,7 +116,7 @@ sctp_wakeup_the_read_socket(struct sctp_inpcb *inp, struct sctp_tcb *stcb,
 #endif
 );
 
-#if defined(__Userspace__)
+#if defined(__Userspace__) || defined(__FreeBSD__)
 void sctp_invoke_recv_callback(struct sctp_inpcb *,
     struct sctp_tcb *,
     struct sctp_queued_to_read *,
