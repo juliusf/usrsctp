@@ -1458,7 +1458,7 @@ sctp_heartbeat_timer(struct sctp_inpcb *inp, struct sctp_tcb *stcb,
 			ms_gone_by = 0xffffffff;
 		}
 		if (inp->plpmtud_supported && net->mtu_probing) {
-			uint32_t base;
+			uint32_t base=0;
 #ifdef INET6
 			if (stcb->asoc.scope.ipv6_addr_legal) {
 				base = SCTP_PROBE_MTU_V6_BASE;
