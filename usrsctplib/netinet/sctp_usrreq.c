@@ -447,6 +447,8 @@ sctp_notify(struct sctp_inpcb *inp,
 						break;
 					}
 				} else if (net->probed_mtu <= next_mtu && next_mtu < net->probe_mtu) {
+					/* padding chunks need to be 4 byte aligned */
+					next_mtu -= next_mtu % 4;
 					switch (net->probing_state) {
 					case SCTP_PROBE_BASE:
 						net->probed_mtu = SCTP_PROBE_MIN;
@@ -457,7 +459,7 @@ sctp_notify(struct sctp_inpcb *inp,
 						break;
 					case SCTP_PROBE_SEARCH_UP:
 						net->mtu_probing = 0;
-						//net->mtu = net->probed_mtu;
+						net->mtu = net->probed_mtu;
 						net->max_mtu = min(net->max_mtu, next_mtu);
 						net->probe_mtu = net->max_mtu;
 						net->probe_counts = 0;
@@ -471,6 +473,8 @@ sctp_notify(struct sctp_inpcb *inp,
 						break;
 					}
 				} else if (next_mtu < net->probed_mtu) {
+					/* padding chunks need to be 4 byte aligned */
+					next_mtu -= next_mtu % 4;
 					switch (net->probing_state) {
 					case SCTP_PROBE_BASE:
 					case SCTP_PROBE_SEARCH_DOWN:
@@ -499,6 +503,8 @@ sctp_notify(struct sctp_inpcb *inp,
 						break;
 					}
 				} else if (next_mtu == base) {
+					/* padding chunks need to be 4 byte aligned */
+					next_mtu -= next_mtu % 4;
 					switch (net->probing_state) {
 					case SCTP_PROBE_BASE:
 						net->probed_mtu = SCTP_PROBE_MIN;
