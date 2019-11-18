@@ -653,7 +653,6 @@ sctp_add_addr_to_vrf(uint32_t vrf_id, void *ifn, uint32_t ifn_index,
 	}
 	sctp_ifap = sctp_find_ifa_by_addr(addr, vrf->vrf_id, SCTP_ADDR_LOCKED);
 	if (sctp_ifap) {
-		sctp_ifap->ifa_mtu = sctp_ifnp->ifn_mtu;
 		/* Hmm, it already exists? */
 		sctp_ifap->ifa_mtu = sctp_ifnp->ifn_mtu;
 		if ((sctp_ifap->ifn_p) &&
