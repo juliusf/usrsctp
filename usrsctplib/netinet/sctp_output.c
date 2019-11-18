@@ -4505,7 +4505,7 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 						net->mtu = mtu;
 						sctp_pathmtu_adjustment(stcb, net->mtu, net);
 					} else {
-						net->max_mtu = mtu;
+						net->max_pmtu = mtu;
 					}
 				}
 #else
@@ -5000,7 +5000,7 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 					}
 				} else {
 					if (!net->got_max) {
-						net->max_mtu = mtu;
+						net->max_pmtu = mtu;
 						net->got_max = 1;
 					}
 					if (net->port) {
@@ -12255,9 +12255,9 @@ sctp_send_hb(struct sctp_tcb *stcb, struct sctp_nets *net,int so_locked
 		return;
 	}
 	if (stcb->sctp_ep->plpmtud_supported && net->mtu_probing) {
-		hb->heartbeat.hb_info.probe_mtu = net->probe_mtu;
+		hb->heartbeat.hb_info.probed_size = net->probed_size;
 	} else {
-		hb->heartbeat.hb_info.probe_mtu = 0;
+		hb->heartbeat.hb_info.probed_size = 0;
 	}
 	net->hb_responded = 0;
 	TAILQ_INSERT_TAIL(&stcb->asoc.control_send_queue, chk, sctp_next);
