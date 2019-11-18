@@ -8573,7 +8573,7 @@ sctp_send_a_probe(struct sctp_inpcb *inp,
 	struct sctphdr *sh;
 	sctp_route_t *ro;
 
-	if (!net->mtu_probing && net->probing_state > SCTP_PROBE_NONE) {
+	if (!net->mtu_probing && net->probing_state > SCTP_PROBE_DISABLED) {
 		net->mtu_probing = 1;
 		net->probe_counts = 0;
 	}

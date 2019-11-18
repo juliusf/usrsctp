@@ -410,18 +410,18 @@ sctp_notify(struct sctp_inpcb *inp,
 			uint32_t base;
 #ifdef INET
 			if (stcb->asoc.scope.ipv4_addr_legal) {
-				base = SCTP_PROBE_MTU_V4_BASE;
+				base = SCTP_PROBE_BASE_PMTU_V4;
 			}
 #endif
 			net->probe_counts = 0;
-			if (net->probing_state == SCTP_PROBE_DONE) {
+			if (net->probing_state == SCTP_PROBE_SEARCH_COMPLETE) {
 				sctp_pathmtu_timer(inp, stcb, net);
 			}
-			if (net->probing_state > SCTP_PROBE_NONE && net->probing_state < SCTP_PROBE_DONE) {
+			if (net->probing_state > SCTP_PROBE_DISABLED && net->probing_state < SCTP_PROBE_SEARCH_COMPLETE) {
 				if (next_mtu == 0) {
 					switch (net->probing_state) {
 					case SCTP_PROBE_BASE:
-						net->probed_mtu = SCTP_PROBE_MIN;
+						net->probed_mtu = SCTP_PROBE_MIN_PMTU;
 						net->mtu_probing = 0;
 						net->probing_state = SCTP_PROBE_ERROR;
 						sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
@@ -429,7 +429,7 @@ sctp_notify(struct sctp_inpcb *inp,
 					case SCTP_PROBE_SEARCH_UP:
 						net->mtu_probing = 0;
 						net->mtu = net->probed_mtu;
-						net->probing_state = SCTP_PROBE_DONE;
+						net->probing_state = SCTP_PROBE_SEARCH_COMPLETE;
 						sctp_timer_stop(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net, SCTP_FROM_SCTP_USRREQ + SCTP_LOC_3);
 						sctp_timer_start(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net);
 						if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
@@ -449,7 +449,7 @@ sctp_notify(struct sctp_inpcb *inp,
 				} else if (net->probed_mtu <= next_mtu && next_mtu < net->probe_mtu) {
 					switch (net->probing_state) {
 					case SCTP_PROBE_BASE:
-						net->probed_mtu = SCTP_PROBE_MIN;
+						net->probed_mtu = SCTP_PROBE_MIN_PMTU;
 						net->mtu_probing = 0;
 						net->max_mtu = min(net->max_mtu, next_mtu);
 						net->probing_state = SCTP_PROBE_ERROR;
@@ -474,7 +474,7 @@ sctp_notify(struct sctp_inpcb *inp,
 					switch (net->probing_state) {
 					case SCTP_PROBE_BASE:
 					case SCTP_PROBE_SEARCH_DOWN:
-						net->probed_mtu = SCTP_PROBE_MIN;
+						net->probed_mtu = SCTP_PROBE_MIN_PMTU;
 						net->mtu_probing = 0;
 						net->max_mtu = min(net->max_mtu, next_mtu);
 						net->probing_state = SCTP_PROBE_ERROR;
@@ -482,7 +482,7 @@ sctp_notify(struct sctp_inpcb *inp,
 						break;
 					case SCTP_PROBE_SEARCH_UP:
 						if (next_mtu < base) {
-							net->probed_mtu = SCTP_PROBE_MIN;
+							net->probed_mtu = SCTP_PROBE_MIN_PMTU;
 							net->mtu_probing = 0;
 							net->max_mtu = min(net->max_mtu, next_mtu);
 							net->probing_state = SCTP_PROBE_ERROR;
@@ -501,7 +501,7 @@ sctp_notify(struct sctp_inpcb *inp,
 				} else if (next_mtu == base) {
 					switch (net->probing_state) {
 					case SCTP_PROBE_BASE:
-						net->probed_mtu = SCTP_PROBE_MIN;
+						net->probed_mtu = SCTP_PROBE_MIN_PMTU;
 						net->mtu_probing = 0;
 						net->max_mtu = min(net->max_mtu, next_mtu);
 						net->probing_state = SCTP_PROBE_ERROR;
@@ -512,7 +512,7 @@ sctp_notify(struct sctp_inpcb *inp,
 						net->mtu = next_mtu;
 						net->probed_mtu = next_mtu;
 						net->max_mtu = next_mtu;
-						net->probing_state = SCTP_PROBE_DONE;
+						net->probing_state = SCTP_PROBE_SEARCH_COMPLETE;
 						sctp_timer_stop(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net, SCTP_FROM_SCTP_USRREQ + SCTP_LOC_7);
 						sctp_timer_start(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net);
 						if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
@@ -530,7 +530,7 @@ sctp_notify(struct sctp_inpcb *inp,
 							net->probe_counts = 0;
 							sctp_send_a_probe(stcb->sctp_ep, stcb, net);
 						} else {
-							net->probing_state = SCTP_PROBE_DONE;
+							net->probing_state = SCTP_PROBE_SEARCH_COMPLETE;
 							sctp_timer_stop(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net, SCTP_FROM_SCTP_USRREQ + SCTP_LOC_7);
 							sctp_timer_start(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net);
 							if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
