@@ -450,8 +450,8 @@ struct sctp_nets {
 #if defined(__Userspace__) || defined(__FreeBSD__)
 	uint8_t got_max;
 #endif
-	uint32_t probed_size; /* actual mtu probing size */
-	uint32_t plpmtu; /* mtu that has last been probed */
+	uint32_t probed_size; /* size being probed for */
+	uint32_t plpmtu; /* confirmed plpmtu */
 	uint32_t max_pmtu;
 	uint16_t probe_count; /* Counter for the probing attempts */
 	uint16_t probing_state;
