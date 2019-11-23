@@ -8507,9 +8507,9 @@ sctp_make_pad(struct sctp_tcb *stcb, struct sctp_nets *net, uint16_t pad_size)
 	int size;
 
 	SCTP_TCB_LOCK_ASSERT(stcb);
-	KASSERT(pad_size >= 4, ("%s: padsize %u too small", __FUNCTION__, pad_size));
-	KASSERT(pad_size % 4 == 0, ("%s: padsize %u not aligned", __FUNCTION__, pad_size));
-	KASSERT(net->mtu_probing != 0, ("%s: mtu_probing not enabled", __FUNCTION__));
+	KASSERT(pad_size >= 4, ("%s: padsize %u too small", __func__, pad_size));
+	KASSERT(pad_size % 4 == 0, ("%s: padsize %u not aligned", __func__, pad_size));
+	KASSERT(net->mtu_probing != 0, ("%s: mtu_probing not enabled", __func__));
 	if (net == NULL) {
 		return NULL;
 	}
