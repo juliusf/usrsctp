@@ -32,7 +32,7 @@
 #include <sys/types.h>
 #if !defined(__Userspace_os_Windows)
 #include <sys/socket.h>
-#include <netinet/in.h>
+//#include <netinet/in.h>
 #include <unistd.h>
 #include <pthread.h>
 #if !defined(__Userspace_os_DragonFly) && !defined(__Userspace_os_FreeBSD) && !defined(__Userspace_os_NetBSD)
@@ -40,6 +40,8 @@
 #else
 #include <user_ip6_var.h>
 #endif
+#else
+#include <user_ip6_var.h>
 #endif
 #include <netinet/sctp_os.h>
 #include <netinet/sctp_var.h>
