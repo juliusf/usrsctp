@@ -8569,7 +8569,7 @@ sctp_send_a_probe(struct sctp_inpcb *inp,
 	int ovh, sum_probe_chunks;
 	uint16_t send_size;
 	struct mbuf *hb, *pad, *m;
-	uint32_t vrf_id;
+	uint32_t vrf_id = 0;
 	struct sctphdr *sh;
 	sctp_route_t *ro;
 
