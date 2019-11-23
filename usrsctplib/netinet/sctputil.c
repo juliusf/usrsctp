@@ -8634,6 +8634,8 @@ sctp_send_a_probe(struct sctp_inpcb *inp,
 							ro, net, 0, vrf_id);
 		net->src_addr_selected = 1;
 	}
+	
+	#if defined(INET) || defined(INET6)
 	if (net->ro._s_addr == NULL) {
 		/* No route to host */
 		net->src_addr_selected = 0;
@@ -8642,6 +8644,8 @@ sctp_send_a_probe(struct sctp_inpcb *inp,
 		sctp_m_freem(m);
 		return;
 	}
+	#endif
+	
 	sctp_send_resp_msg((struct sockaddr *)&net->ro._l_addr,
 	                   (struct sockaddr *)&net->ro._s_addr->address,
 	                   sh, stcb->asoc.peer_vtag,
