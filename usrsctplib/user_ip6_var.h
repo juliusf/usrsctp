@@ -60,7 +60,6 @@
 #ifndef _USER_IP6_VAR_H_
 #define _USER_IP6_VAR_H_
 
-#include <netinet/sctp_os_userspace.h>
 
 #if !defined(__Userspace_os_FreeBSD) && !defined(__Userspace_os_OpenBSD) && !defined(__Userspace_os_DragonFly)
 /* from netinet6/ip6protosw.h */
@@ -113,6 +112,7 @@ struct ip6_hdr {
 #endif
 
 #if !defined(__Userspace_os_FreeBSD) && !defined(__Userspace_os_OpenBSD) && !defined(__Userspace_os_DragonFly)
+#include <netinet/in.h>
 struct route_in6 {
 	struct	rtentry *ro_rt;
 	struct	llentry *ro_lle;
