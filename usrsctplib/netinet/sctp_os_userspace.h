@@ -541,7 +541,7 @@ struct sx {int dummy;};
 #else
 #include <netinet6/ip6_var.h>
 #endif
-#if defined(__Userspace_os_FreeBSD)
+#if defined(__Userspace_os_FreeBSD)  || defined(__Userspace_os_NetBSD)
 #include <netinet6/in6_pcb.h>
 #include <netinet6/ip6protosw.h>
 /* #include <netinet6/nd6.h> was a 0 byte file */
