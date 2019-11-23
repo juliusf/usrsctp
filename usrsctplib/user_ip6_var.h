@@ -62,7 +62,7 @@
 
 #include <netinet/sctp_os_userspace.h>
 
-#if !defined(__Userspace_os_FreeBSD)
+#if !defined(__Userspace_os_FreeBSD) && !defined(__Userspace_os_OpenBSD) && !defined(__Userspace_os_DragonFly)
 /* from netinet6/ip6protosw.h */
 struct ip6ctlparam {
 	struct mbuf *ip6c_m;            /* start of mbuf chain */
