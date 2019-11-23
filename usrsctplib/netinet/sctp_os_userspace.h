@@ -489,7 +489,7 @@ struct sx {int dummy;};
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
 #endif
-#if defined(HAVE_NETINET_IP_ICMP_H)
+#if defined(HAVE_NETINET_IP_ICMP_H) || defined(__Userspace_os_NetBSD)
 #include <netinet/ip_icmp.h>
 #else
 #include <user_ip_icmp.h>
