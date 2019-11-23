@@ -38,6 +38,7 @@
 #if !defined(__Userspace_os_DragonFly) && !defined(__Userspace_os_FreeBSD) && !defined(__Userspace_os_NetBSD)
 #include <sys/uio.h>
 #else
+struct route_in6;
 #include <user_ip6_var.h>
 #endif
 #endif
