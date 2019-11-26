@@ -419,10 +419,17 @@ sctp_notify(struct sctp_inpcb *inp,
 		/* no need to unlock here, since the TCB is gone */
 	} else if (icmp_code == ICMP_UNREACH_NEEDFRAG) {
 		if (inp->plpmtud_supported) {
-			uint32_t base;
+			uint32_t base = SCTP_PROBE_BASE_PMTU_V4;
 #ifdef INET
 			if (stcb->asoc.scope.ipv4_addr_legal) {
 				base = SCTP_PROBE_BASE_PMTU_V4;
+			}
+#endif
+
+#ifdef INET6
+			if (stcb->asoc.scope.ipv6_addr_legal){
+
+				base = SCTP_PROBE_BASE_PMTU_V6;
 			}
 #endif
 			net->probe_count = 0;
