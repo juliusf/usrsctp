@@ -53,11 +53,11 @@ all: \
 	ekr_server \
 	ekr_peer \
 	ekr_loop \
-	ekr_loop_offload \
 	ekr_loop_upcall \
 	test_libmgmt \
 	http_client \
-	http_client_upcall
+	http_client_upcall \
+	st_client
 	
 programs_helper.obj : programs_helper.c programs_helper.h
 	cl $(CVARSDLL) $(CFLAGS) -c programs_helper.c
@@ -118,10 +118,6 @@ ekr_loop:
 	$(CC) $(CFLAGS) $(CVARSDLL) -c ekr_loop.c
 	link -out:ekr_loop.exe ekr_loop.obj programs_helper.obj $(LINKFLAGS)
 
-ekr_loop_offload:
-	$(CC) $(CFLAGS) $(CVARSDLL) -c ekr_loop_offload.c
-	link -out:ekr_loop_offload.exe ekr_loop_offload.obj programs_helper.obj $(LINKFLAGS)
-
 ekr_loop_upcall:
 	$(CC) $(CFLAGS) $(CVARSDLL) -c ekr_loop_upcall.c
 	link -out:ekr_loop_upcall.exe ekr_loop_upcall.obj programs_helper.obj $(LINKFLAGS)
@@ -137,6 +133,10 @@ http_client:
 http_client_upcall:
 	$(CC) $(CFLAGS) $(CVARSDLL) -c http_client_upcall.c
 	link -out:http_client_upcall.exe http_client_upcall.obj programs_helper.obj $(LINKFLAGS)
+
+st_client:
+	$(CC) $(CFLAGS) $(CVARSDLL) -c st_client.c
+	link -out:st_client.exe st_client.obj programs_helper.obj $(LINKFLAGS)
 
 clean:
 	del /F client.exe
@@ -167,8 +167,6 @@ clean:
 	del /F ekr_peer.obj
 	del /F ekr_loop.exe
 	del /F ekr_loop.obj
-	del /F ekr_loop_offload.exe
-	del /F ekr_loop_offload.obj
 	del /F ekr_loop_upcall.exe
 	del /F ekr_loop_upcall.obj
 	del /F test_libmgmt.exe
@@ -177,3 +175,5 @@ clean:
 	del /F http_client.obj
 	del /F http_client_upcall.exe
 	del /F http_client_upcall.obj
+	del /F st_client.exe
+	del /F st_client.obj

@@ -69,10 +69,12 @@ handle_accept(struct socket *sock, void *data, int flags)
 	}
 	time(&now);
 #ifdef _WIN32
-		_snprintf(buffer, sizeof(buffer), "%s", ctime(&now));
+		if (_snprintf(buffer, sizeof(buffer), "%s", ctime(&now)) < 0) {
 #else
-		snprintf(buffer, sizeof(buffer), "%s", ctime(&now));
+		if (snprintf(buffer, sizeof(buffer), "%s", ctime(&now)) < 0) {
 #endif
+			buffer[0] = '\0';
+		}
 		sndinfo.snd_sid = 0;
 		sndinfo.snd_flags = 0;
 		sndinfo.snd_ppid = htonl(DAYTIME_PPID);
@@ -91,14 +93,15 @@ main(int argc, char *argv[])
 	struct sctp_udpencaps encaps;
 
 	if (argc > 1) {
-		usrsctp_init(atoi(argv[1]), NULL, debug_printf);
+		usrsctp_init(atoi(argv[1]), NULL, debug_printf_stack);
 	} else {
-		usrsctp_init(9899, NULL, debug_printf);
+		usrsctp_init(9899, NULL, debug_printf_stack);
 	}
 #ifdef SCTP_DEBUG
 	usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_NONE);
 #endif
 	usrsctp_sysctl_set_sctp_blackhole(2);
+	usrsctp_sysctl_set_sctp_no_csum_on_loopback(0);
 
 	if ((sock = usrsctp_socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP, NULL, NULL, 0, NULL)) == NULL) {
 		perror("usrsctp_socket");

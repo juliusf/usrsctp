@@ -47,12 +47,12 @@ EXTRA_DIST = \
     ekr_client.c \
     ekr_server.c \
     ekr_loop.c \
-    ekr_loop_offload.c \
     ekr_loop_upcall.c \
     ekr_peer.c \
     test_libmgmt.c \
     http_client.c \
-    http_client_upcall.c
+    http_client_upcall.c \
+    st_client.c
 
 noinst_PROGRAMS = \
     test_libmgmt \
@@ -71,12 +71,12 @@ noinst_PROGRAMS = \
     ekr_client \
     ekr_server \
     ekr_loop \
-    ekr_loop_offload \
     ekr_loop_upcall \
     ekr_peer \
     test_libmgmt \
     http_client \
-    http_client_upcall
+    http_client_upcall \
+    st_client
 
 test_libmgmt_SOURCES = programs_helper.c test_libmgmt.c
 test_libmgmt_LDADD = ../usrsctplib/libusrsctp.la
@@ -112,11 +112,11 @@ ekr_peer_SOURCES = programs_helper.c ekr_peer.c
 ekr_peer_LDADD = ../usrsctplib/libusrsctp.la
 ekr_loop_SOURCES = programs_helper.c ekr_loop.c
 ekr_loop_LDADD = ../usrsctplib/libusrsctp.la
-ekr_loop_offload_SOURCES = programs_helper.c ekr_loop_offload.c
-ekr_loop_offload_LDADD = ../usrsctplib/libusrsctp.la
 ekr_loop_upcall_SOURCES = programs_helper.c ekr_loop_upcall.c
 ekr_loop_upcall_LDADD = ../usrsctplib/libusrsctp.la
 http_client_SOURCES = programs_helper.c http_client.c
 http_client_LDADD = ../usrsctplib/libusrsctp.la
 http_client_upcall_SOURCES = programs_helper.c http_client_upcall.c
 http_client_upcall_LDADD = ../usrsctplib/libusrsctp.la
+st_client_SOURCES = programs_helper.c st_client.c
+st_client_LDADD = ../usrsctplib/libusrsctp.la

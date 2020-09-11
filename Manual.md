@@ -128,7 +128,8 @@ usrsctp_socket(int domain,
                                  int flags,
                                  void *ulp_info),
                int (*send_cb)(struct socket *sock,
-                              uint32_t sb_free),
+                              uint32_t sb_free,
+                              void *ulp_info),
                uint32_t sb_threshold,
                void *ulp_info)
 ```
@@ -587,8 +588,8 @@ is added or removed. This feature is enabled by default.
 #### usrsctp_sysctl_set_sctp_multiple_asconfs()
 By default the sending of multiple ASCONFs is disabled.
 
-#### usrsctp_sysctl_set_sctp_auth_disable()
-The use of AUTH, which is normally turned on, can be disabled by setting this parameter to 1.
+#### usrsctp_sysctl_set_sctp_auth_enable()
+The use of AUTH, which is normally turned on, can be disabled by setting this parameter to 0.
 
 #### usrsctp_sysctl_set_sctp_asconf_auth_nochk()
 It is also possible to disable the requirement to use AUTH in conjunction with ADD-IP by setting this parameter

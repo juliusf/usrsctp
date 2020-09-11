@@ -86,15 +86,17 @@ receive_cb(struct socket *sock, union sctp_sockstore addr, void *data,
 #endif
 			case AF_CONN:
 #ifdef _WIN32
-				_snprintf(namebuf, INET6_ADDRSTRLEN, "%p", addr.sconn.sconn_addr);
+				if (_snprintf(namebuf, INET6_ADDRSTRLEN, "%p", addr.sconn.sconn_addr) < 0) {
 #else
-				snprintf(namebuf, INET6_ADDRSTRLEN, "%p", addr.sconn.sconn_addr);
+				if (snprintf(namebuf, INET6_ADDRSTRLEN, "%p", addr.sconn.sconn_addr) < 0) {
 #endif
+					namebuf[0] = '\0';
+				}
 				name = namebuf;
 				port = ntohs(addr.sconn.sconn_port);
 				break;
 			default:
-				name = NULL;
+				name = "???";
 				port = 0;
 				break;
 			}
@@ -139,14 +141,15 @@ main(int argc, char *argv[])
 	unsigned int infotype;
 
 	if (argc > 1) {
-		usrsctp_init(atoi(argv[1]), NULL, debug_printf);
+		usrsctp_init(atoi(argv[1]), NULL, debug_printf_stack);
 	} else {
-		usrsctp_init(9899, NULL, debug_printf);
+		usrsctp_init(9899, NULL, debug_printf_stack);
 	}
 #ifdef SCTP_DEBUG
 	usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_ALL);
 #endif
 	usrsctp_sysctl_set_sctp_blackhole(2);
+	usrsctp_sysctl_set_sctp_no_csum_on_loopback(0);
 
 	if ((sock = usrsctp_socket(AF_INET6, SOCK_SEQPACKET, IPPROTO_SCTP, use_cb?receive_cb:NULL, NULL, 0, NULL)) == NULL) {
 		perror("usrsctp_socket");
