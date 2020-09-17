@@ -32,13 +32,13 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if defined(__FreeBSD__) && !defined(__Userspace__)
+	#if defined(__FreeBSD__) && !defined(__Userspace__)
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD: head/sys/netinet/sctp_usrreq.c 350626 2019-08-06 10:29:19Z tuexen $");
 #endif
 
 #include <netinet/sctp_os.h>
-#if defined(__FreeBSD__) && !defined(__Userspace__)
+#ifdef __FreeBSD__
 #include <sys/proc.h>
 #endif
 #include <netinet/sctp_pcb.h>
@@ -58,10 +58,11 @@ __FBSDID("$FreeBSD: head/sys/netinet/sctp_usrreq.c 350626 2019-08-06 10:29:19Z t
 #include <netinet/sctp_bsd_addr.h>
 #if defined(__Userspace__)
 #include <netinet/sctp_callout.h>
-#else
+#endif
+#if !defined(_WIN32)
 #include <netinet/udp.h>
 #endif
-#if defined(__FreeBSD__) && !defined(__Userspace__)
+#if defined(__FreeBSD__)
 #include <sys/eventhandler.h>
 #endif
 
@@ -132,6 +133,7 @@ sctp_init(void)
 #ifdef INET6
 	SCTP_BASE_VAR(userspace_rawsctp6) = -1;
 	SCTP_BASE_VAR(userspace_udpsctp6) = -1;
+		SCTP_BASE_VAR(userspace_icmp6) = -1;
 #endif
 	SCTP_BASE_VAR(timer_thread_should_exit) = 0;
 	SCTP_BASE_VAR(conn_output) = conn_output;
@@ -326,6 +328,161 @@ sctp_notify(struct sctp_inpcb *inp,
 #endif
 		/* no need to unlock here, since the TCB is gone */
 	} else if (icmp_code == ICMP_UNREACH_NEEDFRAG) {
+		if (inp->plpmtud_supported) {
+			uint32_t base = SCTP_PROBE_BASE_PMTU_V4;
+#ifdef INET
+			if (stcb->asoc.scope.ipv4_addr_legal) {
+				base = SCTP_PROBE_BASE_PMTU_V4;
+			}
+#endif
+
+#ifdef INET6
+			if (stcb->asoc.scope.ipv6_addr_legal){
+
+				base = SCTP_PROBE_BASE_PMTU_V6;
+			}
+#endif
+			net->probe_count = 0;
+			if (net->probing_state == SCTP_PROBE_SEARCH_COMPLETE) {
+				sctp_pathmtu_timer(inp, stcb, net);
+			}
+			if (net->probing_state > SCTP_PROBE_DISABLED && net->probing_state < SCTP_PROBE_SEARCH_COMPLETE) {
+				if (next_mtu < SCTP_PROBE_MIN_PMTU){
+					return;
+				}
+
+				if (next_mtu == 0) {
+					switch (net->probing_state) {
+					case SCTP_PROBE_BASE:
+						net->plpmtu = SCTP_PROBE_MIN_PMTU;
+						net->mtu_probing = 0;
+						net->probing_state = SCTP_PROBE_ERROR;
+						sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						break;
+					case SCTP_PROBE_SEARCH_UP:
+						net->mtu_probing = 0;
+						net->mtu = net->plpmtu;
+						net->probing_state = SCTP_PROBE_SEARCH_COMPLETE;
+						sctp_timer_stop(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net, SCTP_FROM_SCTP_USRREQ + SCTP_LOC_3);
+						sctp_timer_start(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net);
+						if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
+							sctp_timer_stop(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net,
+							SCTP_FROM_SCTP_USRREQ + SCTP_LOC_4);
+						}
+						sctp_pathmtu_adjustment(stcb, net->mtu, net);
+						sctp_timer_start(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net);
+						break;
+					case SCTP_PROBE_SEARCH_DOWN:
+						net->max_pmtu = sctp_get_prev_mtu(net->max_pmtu);
+						net->probed_size = net->max_pmtu;
+						net->probe_count = 0;
+						sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						break;
+					}
+				} else if (net->plpmtu <= next_mtu && next_mtu < net->probed_size) {
+					/* padding chunks need to be 4 byte aligned */
+					next_mtu -= next_mtu % 4;
+					switch (net->probing_state) {
+					case SCTP_PROBE_BASE:
+						net->plpmtu = SCTP_PROBE_MIN_PMTU;
+						net->mtu_probing = 0;
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probing_state = SCTP_PROBE_ERROR;
+						sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						break;
+					case SCTP_PROBE_SEARCH_UP:
+						net->mtu_probing = 0;
+						net->mtu = net->plpmtu;
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probed_size = net->max_pmtu;
+						net->probe_count = 0;
+						sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						break;
+					case SCTP_PROBE_SEARCH_DOWN:
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probed_size = net->max_pmtu;
+						net->probe_count = 0;
+						sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						break;
+					}
+				} else if (next_mtu < net->plpmtu) {
+					/* padding chunks need to be 4 byte aligned */
+					next_mtu -= next_mtu % 4;
+					switch (net->probing_state) {
+					case SCTP_PROBE_SEARCH_DOWN:
+						net->plpmtu = SCTP_PROBE_MIN_PMTU;
+						net->mtu_probing = 0;
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probing_state = SCTP_PROBE_ERROR;
+						sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						break;
+					case SCTP_PROBE_BASE:
+					case SCTP_PROBE_SEARCH_UP:
+						if (next_mtu < base) {
+							net->plpmtu = SCTP_PROBE_MIN_PMTU;
+							net->mtu_probing = 0;
+							net->max_pmtu = min(net->max_pmtu, next_mtu);
+							net->probing_state = SCTP_PROBE_ERROR;
+							sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						} else {
+							net->probed_size = base;
+							net->plpmtu = base;
+							net->mtu = min(net->plpmtu, next_mtu);
+							net->max_pmtu = min(net->max_pmtu, next_mtu);
+							net->probing_state = SCTP_PROBE_BASE;
+							net->probe_count = 0;
+							sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						}
+						break;
+					}
+				} else if (next_mtu == base) {
+					/* padding chunks need to be 4 byte aligned */
+					next_mtu -= next_mtu % 4;
+					switch (net->probing_state) {
+					case SCTP_PROBE_BASE:
+						net->plpmtu = SCTP_PROBE_MIN_PMTU;
+						net->mtu_probing = 0;
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probing_state = SCTP_PROBE_ERROR;
+						sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						break;
+					case SCTP_PROBE_SEARCH_DOWN:
+						net->mtu_probing = 0;
+						net->mtu = next_mtu;
+						net->plpmtu = next_mtu;
+						net->max_pmtu = next_mtu;
+						net->probing_state = SCTP_PROBE_SEARCH_COMPLETE;
+						sctp_timer_stop(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net, SCTP_FROM_SCTP_USRREQ + SCTP_LOC_7);
+						sctp_timer_start(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net);
+						if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
+							sctp_timer_stop(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net,
+							SCTP_FROM_SCTP_USRREQ + SCTP_LOC_8);
+						}
+						sctp_timer_start(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net);
+						break;
+					case SCTP_PROBE_SEARCH_UP:
+						net->mtu = min(net->plpmtu, next_mtu);
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						if (net->plpmtu > base) {
+							net->probed_size = base;
+							net->probing_state = SCTP_PROBE_BASE;
+							net->probe_count = 0;
+							sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						} else {
+							net->probing_state = SCTP_PROBE_SEARCH_COMPLETE;
+							sctp_timer_stop(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net, SCTP_FROM_SCTP_USRREQ + SCTP_LOC_7);
+							sctp_timer_start(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net);
+							if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
+								sctp_timer_stop(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net,
+								SCTP_FROM_SCTP_USRREQ + SCTP_LOC_8);
+							}
+							sctp_timer_start(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net);
+						}
+						break;
+					}
+				}
+			}
+		} else {
 		if (net->dest_state & SCTP_ADDR_NO_PMTUD) {
 			SCTP_TCB_UNLOCK(stcb);
 			return;
@@ -370,6 +527,7 @@ sctp_notify(struct sctp_inpcb *inp,
 		if (timer_stopped) {
 			sctp_timer_start(SCTP_TIMER_TYPE_PATHMTURAISE, inp, stcb, net);
 		}
+		}
 		SCTP_TCB_UNLOCK(stcb);
 	} else {
 		SCTP_TCB_UNLOCK(stcb);
@@ -377,9 +535,8 @@ sctp_notify(struct sctp_inpcb *inp,
 }
 
 
-
 void
-#if defined(__APPLE__) && !defined(APPLE_LEOPARD) && !defined(APPLE_SNOWLEOPARD) && !defined(APPLE_LION) && !defined(APPLE_MOUNTAINLION) && !defined(APPLE_ELCAPITAN)
+#if defined(__APPLE__) && !defined(APPLE_LEOPARD) && !defined(APPLE_SNOWLEOPARD) && !defined(APPLE_LION) && !defined(APPLE_MOUNTAINLION) && !defined(APPLE_ELCAPITAN) && !defined(__Userspace__)
 sctp_ctlinput(int cmd, struct sockaddr *sa, void *vip, struct ifnet *ifp SCTP_UNUSED)
 #else
 sctp_ctlinput(int cmd, struct sockaddr *sa, void *vip)
@@ -403,11 +560,17 @@ sctp_ctlinput(int cmd, struct sockaddr *sa, void *vip)
 	    ((struct sockaddr_in *)sa)->sin_addr.s_addr == INADDR_ANY) {
 		return;
 	}
+#if !defined(__Userspace__)
 	if (PRC_IS_REDIRECT(cmd)) {
 		vip = NULL;
 	} else if ((unsigned)cmd >= PRC_NCMDS || inetctlerrmap[cmd] == 0) {
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(_WIN32) || defined(__Userspace__)
 		return;
+#else
+		return (NULL);
+#endif
 	}
+#endif
 	if (vip != NULL) {
 		inner_ip = (struct ip *)vip;
 		icmp = (struct icmp *)((caddr_t)inner_ip -
@@ -483,7 +646,7 @@ sctp_ctlinput(int cmd, struct sockaddr *sa, void *vip)
 			sctp_notify(inp, stcb, net,
 			            icmp->icmp_type,
 			            icmp->icmp_code,
-#if defined(__FreeBSD__) || defined(__Userspace__)
+#if defined(__FreeBSD__) && !defined(__Userspace__)
 			            ntohs(inner_ip->ip_len),
 #else
 			            inner_ip->ip_len,
@@ -523,6 +686,7 @@ sctp_ctlinput(int cmd, struct sockaddr *sa, void *vip)
 }
 #endif
 
+//#endif
 
 #if defined(__FreeBSD__) && !defined(__Userspace__)
 static int

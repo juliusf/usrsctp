@@ -397,7 +397,7 @@ void sctp_pathmtu_adjustment(struct sctp_tcb *, uint16_t, struct sctp_nets *);
 #else
 void sctp_input(struct mbuf *,...);
 #endif
-void *sctp_ctlinput(int, struct sockaddr *, void *);
+void sctp_ctlinput(int, struct sockaddr *, void *);
 int sctp_ctloutput(int, struct socket *, int, int, struct mbuf **);
 #endif
 void sctp_drain(void);
@@ -405,6 +405,8 @@ void sctp_drain(void);
 void sctp_init(uint16_t,
                int (*)(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df),
                void (*)(const char *, ...), int start_threads);
+void sctp_notify(struct sctp_inpcb *, struct sctp_tcb *, struct sctp_nets *,
+    uint8_t, uint8_t, uint16_t, uint32_t);
 #elif defined(__APPLE__) && (!defined(APPLE_LEOPARD) && !defined(APPLE_SNOWLEOPARD) &&!defined(APPLE_LION) && !defined(APPLE_MOUNTAINLION))
 void sctp_init(struct protosw *pp, struct domain *dp);
 #else

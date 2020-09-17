@@ -4691,6 +4691,8 @@ sctp_add_remote_addr(struct sctp_tcb *stcb, struct sockaddr *newaddr,
 			net->got_max = 1;
 		}
 	}
+
+#endif
 #else
 	net->got_max = 0;
 #endif

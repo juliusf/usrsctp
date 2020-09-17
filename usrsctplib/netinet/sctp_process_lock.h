@@ -53,6 +53,7 @@
  * per socket level locking
  */
 
+
 #if defined(_WIN32)
 /* Lock for INFO stuff */
 #define SCTP_INP_INFO_LOCK_INIT()
@@ -673,5 +674,12 @@
 
 #define SCTP_DECR_STRMOQ_COUNT() \
 	atomic_subtract_int(&SCTP_BASE_INFO(ipi_count_strmoq), 1)
+
+/* check if these empty locks are ok*/
+#if defined(__Userspace__)
+#define SCTP_INP_SO(sctpinp)	(sctpinp)->ip_inp.inp.inp_socket
+#define SCTP_SOCKET_LOCK(so, refcnt)
+#define SCTP_SOCKET_UNLOCK(so, refcnt)
+#endif
 
 #endif

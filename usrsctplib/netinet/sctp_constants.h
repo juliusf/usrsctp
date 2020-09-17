@@ -713,6 +713,20 @@ extern void getwintimeofday(struct timeval *tv);
 #define SCTP_SECRET_SIZE	32	/* number of octets in a 256 bits */
 
 
+#define SCTP_PROBE_DISABLED                      0
+#define SCTP_PROBE_ERROR                         1
+#define SCTP_PROBE_BASE                          2
+#define SCTP_PROBE_SEARCH_UP                     3
+#define SCTP_PROBE_SEARCH_DOWN                   4
+#define SCTP_PROBE_SEARCH_COMPLETE               5
+
+#define SCTP_PROBE_BASE_PMTU_V4               1200
+#define SCTP_PROBE_BASE_PMTU_V6               1280
+
+#define SCTP_PROBE_MAX_PROBES                    3
+#define SCTP_PROBE_MIN_PMTU                     76 /* Size of a HEARTBEAT Chunk with HB Info */
+
+#define SCTP_PROBE_UP                            1
 /*
  * SCTP upper layer notifications
  */

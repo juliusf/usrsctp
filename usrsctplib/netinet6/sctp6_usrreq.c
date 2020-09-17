@@ -36,7 +36,6 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD: head/sys/netinet6/sctp6_usrreq.c 361895 2020-06-07 14:39:20Z tuexen $");
 #endif
-
 #include <netinet/sctp_os.h>
 #ifdef INET6
 #if defined(__FreeBSD__) && !defined(__Userspace__)
@@ -67,6 +66,8 @@ int ip6_v6only=0;
 #endif
 #if defined(__Userspace__)
 #ifdef INET
+
+#include <sys/protosw.h>
 void
 in6_sin6_2_sin(struct sockaddr_in *sin, struct sockaddr_in6 *sin6)
 {
@@ -307,6 +308,7 @@ sctp6_input(struct mbuf **i_pak, int *offp, int proto SCTP_UNUSED)
 	return (sctp6_input_with_port(i_pak, offp, 0));
 }
 #endif
+#endif
 
 void
 sctp6_notify(struct sctp_inpcb *inp,
@@ -360,38 +362,178 @@ sctp6_notify(struct sctp_inpcb *inp,
 		}
 		break;
 	case ICMP6_PACKET_TOO_BIG:
-		if (net->dest_state & SCTP_ADDR_NO_PMTUD) {
-			SCTP_TCB_UNLOCK(stcb);
-			break;
-		}
-		if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
-			timer_stopped = 1;
-			sctp_timer_stop(SCTP_TIMER_TYPE_PATHMTURAISE, inp, stcb, net,
-			                SCTP_FROM_SCTP_USRREQ + SCTP_LOC_1);
-		} else {
-			timer_stopped = 0;
-		}
-		/* Update the path MTU. */
-		if (net->port) {
-			next_mtu -= sizeof(struct udphdr);
-		}
-		if (net->mtu > next_mtu) {
-			net->mtu = next_mtu;
-#if defined(__FreeBSD__)
-			if (net->port) {
-				sctp_hc_set_mtu(&net->ro._l_addr, inp->fibnum, next_mtu + sizeof(struct udphdr));
-			} else {
-				sctp_hc_set_mtu(&net->ro._l_addr, inp->fibnum, next_mtu);
+	printf("ICMP6_PACKET_TOO_BIG\n");
+	if (inp->plpmtud_supported) {
+			uint32_t base;
+#ifdef INET6
+			if (stcb->asoc.scope.ipv6_addr_legal) {
+				base = SCTP_PROBE_BASE_PMTU_V6;
 			}
 #endif
-		}
-		/* Update the association MTU */
-		if (stcb->asoc.smallest_mtu > next_mtu) {
-			sctp_pathmtu_adjustment(stcb, next_mtu, net);
-		}
-		/* Finally, start the PMTU timer if it was running before. */
-		if (timer_stopped) {
-			sctp_timer_start(SCTP_TIMER_TYPE_PATHMTURAISE, inp, stcb, net);
+			net->probe_count = 0;
+			if (net->probing_state == SCTP_PROBE_SEARCH_COMPLETE) {
+				sctp_pathmtu_timer(inp, stcb, net);
+			}
+			if (net->probing_state > SCTP_PROBE_DISABLED && net->probing_state < SCTP_PROBE_SEARCH_COMPLETE) {
+				if (next_mtu == 0) {
+					switch (net->probing_state) {
+					case SCTP_PROBE_BASE:
+						net->plpmtu = SCTP_PROBE_MIN_PMTU;
+						net->mtu_probing = 0;
+						net->probing_state = SCTP_PROBE_ERROR;
+						sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						break;
+					case SCTP_PROBE_SEARCH_UP:
+						net->mtu_probing = 0;
+						net->mtu = net->plpmtu;
+						net->probing_state = SCTP_PROBE_SEARCH_COMPLETE;
+						sctp_timer_stop(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net, SCTP_FROM_SCTP_USRREQ + SCTP_LOC_3);
+						sctp_timer_start(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net);
+						if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
+							sctp_timer_stop(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net,
+							SCTP_FROM_SCTP_USRREQ + SCTP_LOC_4);
+						}
+						sctp_pathmtu_adjustment(stcb, net->mtu, net);
+						sctp_timer_start(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net);
+						break;
+					case SCTP_PROBE_SEARCH_DOWN:
+						net->max_pmtu = sctp_get_prev_mtu(net->max_pmtu);
+						net->probed_size = net->max_pmtu;
+						net->probe_count = 0;
+						sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						break;
+					}
+				} else if (net->plpmtu <= next_mtu && next_mtu < net->probed_size) {
+					switch (net->probing_state) {
+					case SCTP_PROBE_BASE:
+						net->plpmtu = SCTP_PROBE_MIN_PMTU;
+						net->mtu_probing = 0;
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probing_state = SCTP_PROBE_ERROR;
+						sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						break;
+					case SCTP_PROBE_SEARCH_UP:
+						net->mtu_probing = 0;
+						//net->mtu = net->plpmtu;
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probed_size = net->max_pmtu;
+						net->probe_count = 0;
+						sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						break;
+					case SCTP_PROBE_SEARCH_DOWN:
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probed_size = net->max_pmtu;
+						net->probe_count = 0;
+						sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						break;
+					}
+				} else if (next_mtu < net->plpmtu) {
+					switch (net->probing_state) {
+					case SCTP_PROBE_BASE:
+					case SCTP_PROBE_SEARCH_DOWN:
+						net->plpmtu = SCTP_PROBE_MIN_PMTU;
+						net->mtu_probing = 0;
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probing_state = SCTP_PROBE_ERROR;
+						sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						break;
+					case SCTP_PROBE_SEARCH_UP:
+						if (next_mtu < base) {
+							net->plpmtu = SCTP_PROBE_MIN_PMTU;
+							net->mtu_probing = 0;
+							net->max_pmtu = min(net->max_pmtu, next_mtu);
+							net->probing_state = SCTP_PROBE_ERROR;
+							sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						} else {
+							net->probed_size = base;
+							net->plpmtu = base;
+							net->mtu = min(net->plpmtu, next_mtu);
+							net->max_pmtu = min(net->max_pmtu, next_mtu);
+							net->probing_state = SCTP_PROBE_BASE;
+							net->probe_count = 0;
+							sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						}
+						break;
+					}
+				} else if (next_mtu == base) {
+					switch (net->probing_state) {
+					case SCTP_PROBE_BASE:
+						net->plpmtu = SCTP_PROBE_MIN_PMTU;
+						net->mtu_probing = 0;
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						net->probing_state = SCTP_PROBE_ERROR;
+						sctp_send_hb(stcb, net, SCTP_SO_NOT_LOCKED);
+						break;
+					case SCTP_PROBE_SEARCH_DOWN:
+						net->mtu_probing = 0;
+						net->mtu = next_mtu;
+						net->plpmtu = next_mtu;
+						net->max_pmtu = next_mtu;
+						net->probing_state = SCTP_PROBE_SEARCH_COMPLETE;
+						sctp_timer_stop(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net, SCTP_FROM_SCTP_USRREQ + SCTP_LOC_7);
+						sctp_timer_start(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net);
+						if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
+							sctp_timer_stop(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net,
+							SCTP_FROM_SCTP_USRREQ + SCTP_LOC_8);
+						}
+						sctp_timer_start(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net);
+						break;
+					case SCTP_PROBE_SEARCH_UP:
+						net->mtu = min(net->plpmtu, next_mtu);
+						net->max_pmtu = min(net->max_pmtu, next_mtu);
+						if (net->plpmtu > base) {
+							net->probed_size = base;
+							net->probing_state = SCTP_PROBE_BASE;
+							net->probe_count = 0;
+							sctp_send_a_probe(stcb->sctp_ep, stcb, net);
+						} else {
+							net->probing_state = SCTP_PROBE_SEARCH_COMPLETE;
+							sctp_timer_stop(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net, SCTP_FROM_SCTP_USRREQ + SCTP_LOC_7);
+							sctp_timer_start(SCTP_TIMER_TYPE_HEARTBEAT, stcb->sctp_ep, stcb, net);
+							if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
+								sctp_timer_stop(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net,
+								SCTP_FROM_SCTP_USRREQ + SCTP_LOC_8);
+							}
+							sctp_timer_start(SCTP_TIMER_TYPE_PATHMTURAISE, stcb->sctp_ep, stcb, net);
+						}
+						break;
+					}
+				}
+			}
+		} else {
+			if (net->dest_state & SCTP_ADDR_NO_PMTUD) {
+				SCTP_TCB_UNLOCK(stcb);
+				break;
+			}
+			if (SCTP_OS_TIMER_PENDING(&net->pmtu_timer.timer)) {
+				timer_stopped = 1;
+				sctp_timer_stop(SCTP_TIMER_TYPE_PATHMTURAISE, inp, stcb, net,
+					        SCTP_FROM_SCTP_USRREQ + SCTP_LOC_1);
+			} else {
+				timer_stopped = 0;
+			}
+			/* Update the path MTU. */
+			if (net->port) {
+				next_mtu -= sizeof(struct udphdr);
+			}
+			if (net->mtu > next_mtu) {
+				net->mtu = next_mtu;
+#if defined(__FreeBSD__)
+				if (net->port) {
+					sctp_hc_set_mtu(&net->ro._l_addr, inp->fibnum, next_mtu + sizeof(struct udphdr));
+				} else {
+					sctp_hc_set_mtu(&net->ro._l_addr, inp->fibnum, next_mtu);
+				}
+#endif
+			}
+			/* Update the association MTU */
+			if (stcb->asoc.smallest_mtu > next_mtu) {
+				sctp_pathmtu_adjustment(stcb, next_mtu, net);
+			}
+			/* Finally, start the PMTU timer if it was running before. */
+			if (timer_stopped) {
+				sctp_timer_start(SCTP_TIMER_TYPE_PATHMTURAISE, inp, stcb, net);
+			}
 		}
 		SCTP_TCB_UNLOCK(stcb);
 		break;
@@ -401,8 +543,9 @@ sctp6_notify(struct sctp_inpcb *inp,
 	}
 }
 
+
 void
-#if defined(__APPLE__) && !defined(APPLE_LEOPARD) && !defined(APPLE_SNOWLEOPARD) && !defined(APPLE_LION) && !defined(APPLE_MOUNTAINLION) && !defined(APPLE_ELCAPITAN)
+#if defined(__APPLE__) && !defined(APPLE_LEOPARD) && !defined(APPLE_SNOWLEOPARD) && !defined(APPLE_LION) && !defined(APPLE_MOUNTAINLION) && !defined(APPLE_ELCAPITAN) &&!defined(__Userspace__)
 sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d, struct ifnet *ifp SCTP_UNUSED)
 #else
 sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
@@ -424,6 +567,7 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 		return;
 	}
 
+#if !defined(__Userspace__)
 	if ((unsigned)cmd >= PRC_NCMDS) {
 		return;
 	}
@@ -432,6 +576,7 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 	} else if (inet6ctlerrmap[cmd] == 0) {
 		return;
 	}
+#endif
 	/* If the parameter is from icmp6, decode it. */
 	if (d != NULL) {
 		ip6cp = (struct ip6ctlparam *)d;
@@ -506,11 +651,11 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 					return;
 				}
 			} else {
-#if defined(__FreeBSD__)
-				if (ip6cp->ip6c_m->m_pkthdr.len >=
-				    ip6cp->ip6c_off + sizeof(struct sctphdr) +
+#if defined(__FreeBSD__) || defined(__Userspace__)
+				if (ip6cp->ip6c_m->m_pkthdr.len >= (uint16_t)
+				    (ip6cp->ip6c_off + sizeof(struct sctphdr) +
 				                      sizeof(struct sctp_chunkhdr) +
-				                      offsetof(struct sctp_init, a_rwnd)) {
+				    offsetof(struct sctp_init, a_rwnd))) {
 					/*
 					 * In this case we can check if we
 					 * got an INIT chunk and if the
@@ -550,7 +695,7 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 			             ntohl(ip6cp->ip6c_icmp6->icmp6_mtu));
 #if defined(__Userspace__)
 			if (!(stcb->sctp_ep->sctp_flags & SCTP_PCB_FLAGS_SOCKET_GONE) &&
-			    (stcb->sctp_socket != NULL) {
+			    (stcb->sctp_socket != NULL)) {
 				struct socket *upcall_socket;
 
 				upcall_socket = stcb->sctp_socket;
@@ -579,7 +724,6 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 		}
 	}
 }
-#endif
 
 /*
  * this routine can probably be collasped into the one in sctp_userreq.c

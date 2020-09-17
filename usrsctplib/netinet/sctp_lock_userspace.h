@@ -49,7 +49,6 @@ __FBSDID("$FreeBSD$");
 /* __Userspace__ putting lock macros in same order as sctp_lock_bsd.h ...*/
 
 #define SCTP_IPI_COUNT_INIT()
-
 #define SCTP_STATLOG_INIT_LOCK()
 #define SCTP_STATLOG_LOCK()
 #define SCTP_STATLOG_UNLOCK()
@@ -212,6 +211,11 @@ __FBSDID("$FreeBSD$");
                 do { \
 		       sctppcbinfo.ipi_count_strmoq--; \
 	        } while (0)
+//#if defined(SCTP_SO_LOCK_TESTING)
+#define SCTP_INP_SO(sctpinp)	(sctpinp)->ip_inp.inp.inp_socket
+#define SCTP_SOCKET_LOCK(so, refcnt)
+#define SCTP_SOCKET_UNLOCK(so, refcnt)
+//#endif
 
 
 /* these were in sctp_lock_empty.h but aren't in sctp_lock_bsd.h ... */

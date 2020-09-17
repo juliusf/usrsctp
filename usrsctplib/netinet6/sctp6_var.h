@@ -46,6 +46,19 @@ extern void in6_sin6_2_sin(struct sockaddr_in *, struct sockaddr_in6 *);
 extern void in6_sin6_2_sin_in_sock(struct sockaddr *);
 extern void in6_sin_2_v4mapsin6(const struct sockaddr_in *, struct sockaddr_in6 *);
 #endif
+#ifdef INET6
+void sctp6_notify(struct sctp_inpcb *, struct sctp_tcb *, struct sctp_nets *,
+                  uint8_t, uint8_t, uint32_t);
+void sctp6_ctlinput(int, struct sockaddr *, void *);
+#if defined(__WIN32)
+#define ICMP6_DST_UNREACH_NOROUTE       0
+#define ICMP6_DST_UNREACH_ADMIN         1
+#define ICMP6_DST_UNREACH_BEYONDSCOPE   2
+#define ICMP6_DST_UNREACH_ADDR          3
+#define ICMP6_DST_UNREACH_NOPORT        4
+#define ICMP6_PARAMPROB_NEXTHEADER      1
+#endif
+#endif
 #endif
 #if defined(_KERNEL)
 
@@ -65,7 +78,7 @@ int sctp6_input_with_port(struct mbuf **, int *, uint16_t);
 #endif
 int sctp6_output(struct sctp_inpcb *, struct mbuf *, struct sockaddr *,
                  struct mbuf *, struct proc *);
-#if defined(__APPLE__) && !defined(__Userspace__) && !defined(APPLE_LEOPARD) && !defined(APPLE_SNOWLEOPARD) && !defined(APPLE_LION) && !defined(APPLE_MOUNTAINLION) && !defined(APPLE_ELCAPITAN)
+#if defined(__APPLE__) && !defined(APPLE_LEOPARD) && !defined(APPLE_SNOWLEOPARD) && !defined(APPLE_LION) && !defined(APPLE_MOUNTAINLION) && !defined(APPLE_ELCAPITAN)
 void sctp6_ctlinput(int, struct sockaddr *, void *, struct ifnet * SCTP_UNUSED);
 #else
 void sctp6_ctlinput(int, struct sockaddr *, void *);

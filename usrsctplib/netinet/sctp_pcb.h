@@ -339,12 +339,15 @@ struct sctp_base_info {
 #if defined(_WIN32) && !defined(__MINGW32__)
 	SOCKET userspace_rawsctp6;
 	SOCKET userspace_udpsctp6;
+	SOCKET userspace_icmp6;
 #else
 	int userspace_rawsctp6;
 	int userspace_udpsctp6;
+	int userspace_icmp6;
 #endif
 	userland_thread_t recvthreadraw6;
 	userland_thread_t recvthreadudp6;
+	userland_thread_t recvthreadicmp6;
 #endif
 	int (*conn_output)(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df);
 	void (*debug_printf)(const char *format, ...);
@@ -505,6 +508,7 @@ struct sctp_inpcb {
 	uint8_t reconfig_supported;
 	uint8_t nrsack_supported;
 	uint8_t pktdrop_supported;
+	uint8_t plpmtud_supported;
 	struct sctp_nonpad_sndrcvinfo def_send;
 	/*-
 	 * These three are here for the sosend_dgram
