@@ -104,8 +104,8 @@ list(APPEND check_programs
 	test_libmgmt.c
 	test_timer.c
 	tsctp.c
-	tsctp6.c
 	tsctp_upcall.c
+
 )
 
 foreach (source_file ${check_programs})
