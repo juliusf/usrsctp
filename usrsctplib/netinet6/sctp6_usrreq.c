@@ -67,7 +67,9 @@ int ip6_v6only=0;
 #if defined(__Userspace__)
 #ifdef INET
 
+#if !defined(__linux__)
 #include <sys/protosw.h>
+#endif
 void
 in6_sin6_2_sin(struct sockaddr_in *sin, struct sockaddr_in6 *sin6)
 {
