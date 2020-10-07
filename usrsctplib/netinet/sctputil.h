@@ -436,4 +436,4 @@ uint32_t sctp_ticks_to_secs(uint32_t);
 uint32_t sctp_secs_to_ticks(uint32_t);
 
 #endif				/* _KERNEL */
-#endif
+

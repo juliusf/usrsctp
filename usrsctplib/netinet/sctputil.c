@@ -8284,8 +8284,9 @@ sctp_recv_icmp_tunneled_packet(int cmd, struct sockaddr *sa, void *vip, void *ct
 	return;
 }
 #endif
+#endif
 
-#if defined(__FreeBSD__) && __FreeBSD_version >= 1100000
+#if defined(__Userspace__) || defined(__FreeBSD__) && __FreeBSD_version >= 1100000
 #ifdef INET6
 void
 sctp_recv_icmp6_tunneled_packet(int cmd, struct sockaddr *sa, void *d, void *ctx SCTP_UNUSED)
@@ -8426,6 +8427,7 @@ sctp_recv_icmp6_tunneled_packet(int cmd, struct sockaddr *sa, void *d, void *ctx
 		}
 		sctp6_notify(inp, stcb, net, type, code,
 			     ntohl(ip6cp->ip6c_icmp6->icmp6_mtu));
+#if 0
 #if defined(__Userspace__)
 		if (!(stcb->sctp_ep->sctp_flags & SCTP_PCB_FLAGS_SOCKET_GONE) &&
 		    (stcb->sctp_socket != NULL)) {
@@ -8443,6 +8445,7 @@ sctp_recv_icmp6_tunneled_packet(int cmd, struct sockaddr *sa, void *d, void *ctx
 			SOCK_LOCK(upcall_socket);
 			sorele(upcall_socket);
 		}
+#endif
 #endif
 	} else {
 		if ((stcb == NULL) && (inp != NULL)) {

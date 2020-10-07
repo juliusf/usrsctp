@@ -695,7 +695,8 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 			             ip6cp->ip6c_icmp6->icmp6_type,
 			             ip6cp->ip6c_icmp6->icmp6_code,
 			             ntohl(ip6cp->ip6c_icmp6->icmp6_mtu));
-#if defined(__Userspace__)
+#if 0
+#if defined(__Userspace__) &
 			upcall_socket = NULL
 			if (!(stcb->sctp_ep->sctp_flags & SCTP_PCB_FLAGS_SOCKET_GONE) &&
 			    (stcb->sctp_socket != NULL) {
@@ -713,6 +714,7 @@ sctp6_ctlinput(int cmd, struct sockaddr *pktdst, void *d)
 				SOCK_LOCK(upcall_socket);
 				sorele(upcall_socket);
 			}
+#endif
 #endif
 		} else {
 #if defined(__FreeBSD__) && __FreeBSD_version < 500000
