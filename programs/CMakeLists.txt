@@ -93,7 +93,6 @@ list(APPEND check_programs
 	echo_server_upcall.c
 	ekr_client.c
 	ekr_loop.c
-	ekr_loop_offload.c
 	ekr_loop_upcall.c
 	ekr_peer.c
 	ekr_server.c
@@ -104,8 +103,8 @@ list(APPEND check_programs
 	test_libmgmt.c
 	test_timer.c
 	tsctp.c
-	tsctp6.c
 	tsctp_upcall.c
+
 )
 
 foreach (source_file ${check_programs})

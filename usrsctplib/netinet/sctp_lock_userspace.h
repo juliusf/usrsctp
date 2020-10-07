@@ -33,7 +33,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) && !defined(__Userspace__)
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 #endif
@@ -49,7 +49,6 @@ __FBSDID("$FreeBSD$");
 /* __Userspace__ putting lock macros in same order as sctp_lock_bsd.h ...*/
 
 #define SCTP_IPI_COUNT_INIT()
-
 #define SCTP_STATLOG_INIT_LOCK()
 #define SCTP_STATLOG_LOCK()
 #define SCTP_STATLOG_UNLOCK()
@@ -68,7 +67,7 @@ __FBSDID("$FreeBSD$");
 #define SCTP_WQ_ADDR_DESTROY()
 #define SCTP_WQ_ADDR_LOCK()
 #define SCTP_WQ_ADDR_UNLOCK()
-
+#define SCTP_WQ_ADDR_LOCK_ASSERT()
 
 #define SCTP_IPI_ADDR_INIT()
 #define SCTP_IPI_ADDR_DESTROY()
@@ -76,19 +75,18 @@ __FBSDID("$FreeBSD$");
 #define SCTP_IPI_ADDR_WLOCK()
 #define SCTP_IPI_ADDR_RUNLOCK()
 #define SCTP_IPI_ADDR_WUNLOCK()
+#define SCTP_IPI_ADDR_LOCK_ASSERT()
+#define SCTP_IPI_ADDR_WLOCK_ASSERT()
 
 #define SCTP_IPI_ITERATOR_WQ_INIT()
 #define SCTP_IPI_ITERATOR_WQ_DESTROY()
 #define SCTP_IPI_ITERATOR_WQ_LOCK()
 #define SCTP_IPI_ITERATOR_WQ_UNLOCK()
 
-
 #define SCTP_IP_PKTLOG_INIT()
 #define SCTP_IP_PKTLOG_LOCK()
 #define SCTP_IP_PKTLOG_UNLOCK()
 #define SCTP_IP_PKTLOG_DESTROY()
-
-
 
 #define SCTP_INP_READ_INIT(_inp)
 #define SCTP_INP_READ_DESTROY(_inp)
@@ -100,9 +98,10 @@ __FBSDID("$FreeBSD$");
 #define SCTP_INP_LOCK_DESTROY(_inp)
 #define SCTP_ASOC_CREATE_LOCK_DESTROY(_inp)
 
-
 #define SCTP_INP_RLOCK(_inp)
 #define SCTP_INP_WLOCK(_inp)
+#define SCTP_INP_RLOCK_ASSERT(_inp)
+#define SCTP_INP_WLOCK_ASSERT(_inp)
 
 #define SCTP_INP_LOCK_CONTENDED(_inp) (0) /* Don't know if this is possible */
 
@@ -212,14 +211,11 @@ __FBSDID("$FreeBSD$");
                 do { \
 		       sctppcbinfo.ipi_count_strmoq--; \
 	        } while (0)
-
-
-/* not sure if __Userspace__ needs these (but copied nonetheless...) */
-#if defined(SCTP_SO_LOCK_TESTING)
+//#if defined(SCTP_SO_LOCK_TESTING)
 #define SCTP_INP_SO(sctpinp)	(sctpinp)->ip_inp.inp.inp_socket
 #define SCTP_SOCKET_LOCK(so, refcnt)
 #define SCTP_SOCKET_UNLOCK(so, refcnt)
-#endif
+//#endif
 
 
 /* these were in sctp_lock_empty.h but aren't in sctp_lock_bsd.h ... */
